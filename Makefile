@@ -1,5 +1,5 @@
 # Minimal Makefile for S5E7 Personality Prediction
-.PHONY: install test clean help quick-test personality-prediction time-stats time-list time-demo
+.PHONY: install test clean help quick-test personality-prediction time-stats time-list time-demo simple-predict enhanced-predict
 
 # Core installation
 install:
@@ -34,6 +34,16 @@ personality-prediction:
 # Enhanced Silver layer training for Bronze medal
 train-silver-enhanced:
 	python scripts/train_silver_enhanced.py
+
+# Simple prediction with data cleaning (handles nan/inf issues)
+simple-predict:
+	@echo "Running simple prediction with data cleaning..."
+	python3 scripts/simple_predict.py
+
+# Enhanced prediction using Gold layer features
+enhanced-predict:
+	@echo "Running enhanced prediction with Gold layer features..."
+	PYTHONPATH=. python3 scripts/predict_with_gold.py
 
 # Code quality - unified with pre-commit hooks
 lint:
@@ -83,6 +93,8 @@ help:
 	@echo "  make quick-test          - Quick single model test"
 	@echo "  make personality-prediction - Full workflow with optimization"
 	@echo "  make train-silver-enhanced - Enhanced Silver training for Bronze medal"
+	@echo "  make simple-predict      - Simple prediction with data cleaning (handles nan/inf)"
+	@echo "  make enhanced-predict    - Enhanced prediction with Gold layer features"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make lint                - Check code quality (black, flake8, mypy)"

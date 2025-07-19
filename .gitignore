@@ -212,3 +212,4 @@ data/kaggle_datasets.duckdb
 outputs/logs/
 outputs/models/
 data/workflow_times.json
+*.csv
