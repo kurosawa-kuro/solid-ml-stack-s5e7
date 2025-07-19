@@ -291,8 +291,9 @@ def get_ml_ready_data(df: pd.DataFrame, target_col: str = "Personality") -> Tupl
             # DataFrameの場合は最初の列を使用
             target_series = target_series.iloc[:, 0]
         y = pd.Series(target_series.astype('int32'), index=model_data.index)
-        # ターゲット列を除外した特徴量
-        feature_cols = [col for col in model_data.columns if col != f"{target_col}_encoded"]
+        # ターゲット列と文字列カラムを除外した特徴量
+        feature_cols = [col for col in model_data.columns 
+                       if col != f"{target_col}_encoded" and model_data[col].dtype != 'object']
         X = model_data[feature_cols]
     else:
         # エンコードされていない場合は元のターゲット列を使用
@@ -303,7 +304,9 @@ def get_ml_ready_data(df: pd.DataFrame, target_col: str = "Personality") -> Tupl
                 # DataFrameの場合は最初の列を使用
                 target_series = target_series.iloc[:, 0]
             y = pd.Series(pd.Categorical(target_series).codes.astype('int32'), index=model_data.index)
-            feature_cols = [col for col in model_data.columns if col != target_col]
+            # ターゲット列と文字列カラムを除外した特徴量
+            feature_cols = [col for col in model_data.columns 
+                           if col != target_col and model_data[col].dtype != 'object']
             X = model_data[feature_cols]
         else:
             raise ValueError(f"Target column {target_col} not found in data")
