@@ -3,7 +3,7 @@ Silver Level Data Management
 構造化・再利用可能・中規模システム
 """
 
-from typing import Tuple, Dict, List, Any
+from typing import Tuple, Dict, Optional
 import pandas as pd
 import duckdb
 
@@ -11,7 +11,7 @@ import duckdb
 class DataPipeline:
     """構造化されたデータ処理パイプライン"""
 
-    def __init__(self, db_path: str, config: Dict = None):
+    def __init__(self, db_path: str, config: Optional[Dict] = None):
         self.db_path = db_path
         self.config = config or {}
         self.conn = None
@@ -102,15 +102,15 @@ class FeatureStore:
 
     def save_features(self, df: pd.DataFrame, name: str):
         """特徴量セットの保存"""
-        conn = self._connect()
+        self._connect()
         # TODO: DuckDBへの保存実装
         pass
 
     def load_features(self, name: str) -> pd.DataFrame:
         """特徴量セットの読み込み"""
-        conn = self._connect()
+        self._connect()
         # TODO: DuckDBからの読み込み実装
-        pass
+        return pd.DataFrame()  # 仮の戻り値
 
     def close(self):
         """接続終了"""

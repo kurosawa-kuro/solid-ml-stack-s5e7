@@ -3,7 +3,7 @@
 Bronze/Silver/Gold レベルを選択可能
 """
 
-from typing import Tuple, Dict, Any
+from typing import Tuple
 import pandas as pd
 
 from .bronze import load_data as bronze_load, quick_preprocess, basic_features
