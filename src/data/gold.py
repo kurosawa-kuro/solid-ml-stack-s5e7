@@ -28,13 +28,18 @@ def clean_and_validate_features(df: pd.DataFrame) -> pd.DataFrame:
             # 無限値をNaNに変換
             df[col] = df[col].replace([np.inf, -np.inf], np.nan)
 
-            # 極端な外れ値の処理（IQR法）
+            # 極端な外れ値の処理（IQR法 + 絶対値制限）
             if df[col].notna().any():
                 Q1 = df[col].quantile(0.25)
                 Q3 = df[col].quantile(0.75)
                 IQR = Q3 - Q1
-                lower_bound = Q1 - 3 * IQR  # 3 IQRs instead of 1.5 for less aggressive
+                lower_bound = Q1 - 3 * IQR
                 upper_bound = Q3 + 3 * IQR
+
+                # 追加：数値安定性のための絶対値制限
+                abs_limit = 1e5  # LightGBM numerical stability
+                lower_bound = max(lower_bound, -abs_limit)
+                upper_bound = min(upper_bound, abs_limit)
 
                 # クリップして外れ値を境界値に設定
                 df[col] = df[col].clip(lower=lower_bound, upper=upper_bound)
@@ -190,13 +195,13 @@ def encode_target(df: pd.DataFrame, target_col: str = "Personality") -> pd.DataF
 
 
 def create_gold_tables() -> None:
-    """gold層テーブルをDuckDBに作成"""
+    """Creates LightGBM-ready Gold tables (Silver → Gold transformation)"""
     conn = duckdb.connect(DB_PATH)
 
     # goldスキーマ作成
     conn.execute("CREATE SCHEMA IF NOT EXISTS gold")
 
-    # silverデータ読み込み
+    # Silver依存チェーン - Exclusively consumes Silver layer
     try:
         train_silver = conn.execute("SELECT * FROM silver.train").df()
         test_silver = conn.execute("SELECT * FROM silver.test").df()
@@ -208,13 +213,18 @@ def create_gold_tables() -> None:
         train_silver = conn.execute("SELECT * FROM silver.train").df()
         test_silver = conn.execute("SELECT * FROM silver.test").df()
 
-    # ターゲットエンコーディング
+    # Apply Gold layer processing pipeline (CLAUDE.md specification)
+    # 1. Target encoding for training data
     train_gold = encode_target(train_silver)
     test_gold = test_silver.copy()
 
-    # モデル用データ準備（エンコード後に特徴量選択）
-    train_gold = prepare_model_data(train_gold, target_col="Personality")
-    test_gold = prepare_model_data(test_gold)
+    # 2. Final validation: Infinite value processing, outlier detection
+    train_gold = clean_and_validate_features(train_gold)
+    test_gold = clean_and_validate_features(test_gold)
+
+    # 3. Statistical feature selection (F-test + MI) for LightGBM optimization
+    train_gold = prepare_model_data(train_gold, target_col="Personality", auto_select=True)
+    test_gold = prepare_model_data(test_gold, auto_select=False)
 
     # goldテーブル作成・挿入
     conn.execute("DROP TABLE IF EXISTS gold.train")
@@ -226,9 +236,11 @@ def create_gold_tables() -> None:
     conn.execute("CREATE TABLE gold.train AS SELECT * FROM train_gold_df")
     conn.execute("CREATE TABLE gold.test AS SELECT * FROM test_gold_df")
 
-    print("Gold tables created: ")
+    print("Gold tables created (LightGBM-ready):")
     print(f"- gold.train: {len(train_gold)} rows, {len(train_gold.columns)} columns")
     print(f"- gold.test: {len(test_gold)} rows, {len(test_gold.columns)} columns")
+    print(f"- Feature selection: Statistical selection (F-test + MI) applied")
+    print(f"- Data quality: Final validation ensuring model training stability")
 
     conn.close()
 
@@ -263,8 +275,8 @@ def get_ml_ready_data(scale_features: bool = False) -> Tuple[Any, Optional[Any],
     return X_train, y_train, X_test, test_ids
 
 
-def create_submission(predictions: np.ndarray, filename: str = "submission.csv") -> None:
-    """提出ファイル作成"""
+def create_submission_format(predictions: np.ndarray, filename: str = "submission.csv") -> None:
+    """Competition output standardization - Standard Kaggle submission file creation"""
     _, test = load_gold_data()
 
     submission = pd.DataFrame(
@@ -274,6 +286,11 @@ def create_submission(predictions: np.ndarray, filename: str = "submission.csv")
     submission.to_csv(filename, index=False)
     print(f"Submission file created: {filename}")
     print(f"Predictions: {submission['Personality'].value_counts()}")
+
+
+def create_submission(predictions: np.ndarray, filename: str = "submission.csv") -> None:
+    """Legacy wrapper for create_submission_format"""
+    create_submission_format(predictions, filename)
 
 
 def get_feature_names() -> List[str]:
