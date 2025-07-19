@@ -366,16 +366,16 @@ def advanced_outlier_detection(df: pd.DataFrame) -> pd.DataFrame:
             df['isolation_forest_outlier'] = (outlier_scores == -1).astype('int32')
             
             # 異常値スコアの保存（連続値）
-            df['isolation_forest_score'] = iso_forest.decision_function(numeric_data)
+            df['isolation_forest_score'] = iso_forest.decision_function(numeric_data).astype('float64')
             
         else:
             df['isolation_forest_outlier'] = 0
-            df['isolation_forest_score'] = 0
+            df['isolation_forest_score'] = 0.0
             
     except Exception as e:
         print(f"Isolation Forest failed: {e}")
         df['isolation_forest_outlier'] = 0
-        df['isolation_forest_score'] = 0
+        df['isolation_forest_score'] = 0.0
     
     # 2. 統計的異常値検出（改良版IQR）
     for col in numeric_cols:
