@@ -23,149 +23,262 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Gap to Bronze**: +0.008 improvement needed
 - **Architecture Quality**: Extensible design preventing future over-engineering
 
-## 【CURRENT ARCHITECTURE】Medallion Design & Pipeline Integration
+## 【MEDALLION ARCHITECTURE】Single Source Data Processing Pipeline
+
+### Data Lineage & Single Source of Truth
 ```
-Implemented Structure:
-├── src/
-│   ├── data/
-│   │   ├── bronze.py     # ✅ Raw data processing
-│   │   ├── silver.py     # ✅ Feature engineering (30+ features)
-│   │   └── gold.py       # ✅ ML-ready data pipeline
-│   ├── models.py         # ✅ LightGBM with pipeline integration (696 lines)
-│   ├── validation.py     # ✅ CV framework with leak prevention (316 lines)
-│   └── util/
-│       ├── time_tracker.py   # ✅ Development efficiency tracking
-│       └── notifications.py  # ✅ Workflow notifications
-├── scripts/
-│   ├── train.py          # ✅ Basic training
-│   ├── train_light.py    # ✅ Fast iteration (322 lines)
-│   ├── train_enhanced.py # ✅ Advanced pipeline
-│   └── train_heavy.py    # ✅ Full optimization
-└── tests/                # ✅ 73% coverage, 475 tests
+🗃️  Raw Data Source (Single Point of Truth)
+     │
+     ├── DuckDB: `/data/kaggle_datasets.duckdb`
+     │   └── Schema: `playground_series_s5e7`
+     │       ├── Table: `train` (Original Competition Data)
+     │       ├── Table: `test` (Original Competition Data)  
+     │       └── Table: `sample_submission` (Original Format)
+     │
+     ↓ [Bronze Processing]
+     │
+🥉  Bronze Layer (`src/data/bronze.py`) 
+     │   └── Purpose: Raw Data Standardization & Quality Assurance
+     │   └── Output: DuckDB `bronze.train`, `bronze.test`
+     │
+     ↓ [Silver Processing]
+     │  
+🥈  Silver Layer (`src/data/silver.py`)
+     │   └── Purpose: Feature Engineering & Domain Knowledge Integration
+     │   └── Input: Bronze Layer Tables (Dependencies: bronze.py)
+     │   └── Output: DuckDB `silver.train`, `silver.test`
+     │
+     ↓ [Gold Processing]
+     │
+🥇  Gold Layer (`src/data/gold.py`)
+     │   └── Purpose: ML-Ready Data Preparation & Model Interface
+     │   └── Input: Silver Layer Tables (Dependencies: silver.py)
+     │   └── Output: X_train, y_train, X_test for LightGBM
+```
+
+### Implementation Structure
+```
+src/
+├── data/                 # 🏗️ Medallion Architecture (Single Source Pipeline)
+│   ├── bronze.py         # 🥉 Raw → Standardized (Entry Point)
+│   ├── silver.py         # 🥈 Standardized → Engineered (Depends: bronze)
+│   └── gold.py           # 🥇 Engineered → ML-Ready (Depends: silver)
+├── models.py             # 🤖 LightGBM Model (Consumes: gold)
+├── validation.py         # ✅ CV Framework (Orchestrates: bronze→silver→gold)
+└── util/                 # 🛠️ Supporting Infrastructure
+    ├── time_tracker.py   
+    └── notifications.py  
 ```
 
 ### Medallion Data Processing Layers
 
-#### Bronze Layer (`src/data/bronze.py`) - Raw Data Processing
-**Purpose**: Raw data ingestion and **competition-grade preprocessing** with leak prevention
-**Core Functions**:
-- `load_data()`: DuckDB direct data loading with dtype validation
-- `validate_data_quality()`: Column type & value range validation (non-negative time, realistic limits)
-- `advanced_missing_strategy()`: Multi-approach missing value handling (flags, imputation, model-based)
-- `encode_categorical_robust()`: Yes/No normalization with order-aware mapping
-- `create_missing_indicators()`: Generate missing flags for high-impact features
-- `winsorize_outliers()`: IQR-based outlier clipping for numeric stability
-- `create_bronze_tables()`: Creates bronze schema with preprocessing metadata
+## 🥉 Bronze Layer - Raw Data Standardization (Entry Point)
 
-**Advanced Missing Value Strategy** (LightGBM-Optimized):
-1. **Missing Flags** (Stage_fear ~10%, Going_outside ~8%): Binary indicators for missing data
-2. **Cross-Feature Imputation**: Use high correlation patterns to predict missing values
-3. **LightGBM Native Handling**: Preserve NaN for automatic tree-based processing
-4. **Fold-Safe Processing**: All statistics computed within CV folds only
+### Single Source Responsibility
+**Input**: Original DuckDB tables (`playground_series_s5e7.train`, `playground_series_s5e7.test`)  
+**Output**: Standardized DuckDB tables (`bronze.train`, `bronze.test`)  
+**Dependencies**: None (Entry point to Medallion pipeline)
 
-**Data Quality Pipeline** (Essential Steps):
-- **Type Validation**: Explicit dtype setting (int/float/bool/category)
-- **Range Guards**: Time_spent_Alone ≤ 24hrs, non-negative behavioral metrics  
-- **Missing Pattern Analysis**: Identify systematic vs random missing
-- **Categorical Standardization**: Unified Yes/No mapping with case handling
-
-**Leak Prevention Architecture**:
-- **Stratified K-Fold**: Maintain Introvert/Extrovert ratio across folds
-- **Within-Fold Statistics**: Imputation values, encodings computed per fold
-- **Pipeline Integration**: sklearn-compatible transformers for cross-validation
-
-**Key Features**:
-- **Competition-Grade Processing**: Implements top-tier Kaggle preprocessing patterns
-- **Missing Intelligence**: Leverages missing patterns as prediction signals
-- **LightGBM Optimized**: Preprocessing specifically designed for tree-based models
-- **Quality Assurance**: Comprehensive validation preventing data corruption
-- **Fast Prototyping**: Sub-second processing maintained despite advanced features
-
-#### Silver Layer (`src/data/silver.py`) - Advanced Feature Engineering
-**Purpose**: Competition-grade feature engineering with **proven top-tier methods**
-**Core Functions**:
-- `advanced_features()`: 15+ statistical and domain features
-- `s5e7_interaction_features()`: **Top solution interaction patterns**
-- `s5e7_drain_adjusted_features()`: **Fatigue-adjusted activity scores** (top-tier invention)
-- `s5e7_communication_ratios()`: **Online vs Offline activity ratios**
-- `s5e7_binning_features()`: **LightGBM-optimized numeric discretization** (tree-friendly)
-- `polynomial_features()`: Degree-2 polynomial expansion
-- `scaling_features()`: Feature standardization
-
-**LightGBM-Optimized Feature Engineering Patterns**:
-1. **Interaction Features** (Winner Solution Based):
-   - **Social Event Participation Rate**: `Social_event_attendance ÷ Going_outside` (per outing)
-   - **Non-Social Outings**: `Going_outside - Social_event_attendance` (non-social purpose outings)
-   - **Communication Ratio**: `Post_frequency ÷ (Social_event_attendance + Going_outside)` (online vs offline)
-   - **Activity Ratio**: Comprehensive activity index for social tendency analysis
-   - **Friend-Social Efficiency**: `Social_event_attendance ÷ Friends_circle_size`
-
-2. **Fatigue-Adjusted Features** (Top-Tier Innovation):
-   - **Drain Adjusted Activity**: `activity_ratio × (1 - Drained_after_socializing)`
-   - Real activity assessment considering post-social fatigue
-   - Activity attenuation modeling for introverted characteristics
-
-3. **LightGBM-Friendly Features**:
-   - **Missing Value Preservation**: Keep NaN for automatic handling
-   - **Categorical Binary Encoding**: Yes/No → 1/0 for optimal tree splits
-   - **Ratio and Difference Features**: Optimized for tree-based splitting
-
-4. **Statistical Composite Indicators**:
-   - **Social Activity Ratio**: Integrated social activity indicator
-   - **Communication Balance**: Online-Offline activity balance
-   - **Introvert-Extrovert Spectrum**: Quantified personality spectrum
-
-**LightGBM-Focused Implementation**:
-- **30+ engineered features** optimized for tree-based models
-- **Missing value strategy**: Leverage LightGBM's native NaN handling
-- **Tree-optimized processing**: Features designed for optimal splitting
-- **Feature importance guided**: Priority implementation of proven features
-- **Robust error handling**: Complete missing value and outlier handling
-
-**Performance Impact** (Expected Effects):
-- **Interaction Features**: +0.2-0.4% (proven in top solutions)
-- **Fatigue Adjustment**: +0.1-0.2% (improved introversion modeling)  
-- **LightGBM Optimization**: +0.3-0.5% (tree-based processing optimization)
-- **Composite Indicators**: +0.1-0.3% (behavioral pattern integration effects)
-
-#### Gold Layer (`src/data/gold.py`) - ML-Ready Data
-**Purpose**: Production-ready ML data preparation
-**Core Functions**:
-- `clean_and_validate_features()`: Data quality assurance
-- `select_best_features()`: Statistical feature selection (F-test + MI)
-- `prepare_model_data()`: Final ML data preparation
-- `get_ml_ready_data()`: X/y split with optional scaling
-
-**Key Features**:
-- **Advanced data cleaning**: Outlier handling, infinite value processing
-- **Intelligent feature selection**: Combined F-statistics and mutual information
-- **ML pipeline integration**: sklearn-compatible data preparation
-- **Production utilities**: Submission file creation, array extraction
-
-### Current Development Strategy
-1. **Bronze Optimization** (Active): Hyperparameter tuning, feature selection → 0.976518
-2. **Silver Expansion** (Ready): XGBoost/CatBoost ensemble, advanced features
-3. **Gold Evolution** (Prepared): Multi-competition reusability, production deployment
-
-## 【DATA MANAGEMENT】DuckDB Ready
-- **Database Path**: `/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb`
-- **Schema**: `playground_series_s5e7`
-- **Tables**: `train`, `test`, `sample_submission`
-- **Target Column**: `Personality` (Introvert/Extrovert)
-- **ID Column**: `id`
-- **Features**: 7 total (5 numeric + 2 categorical)
-
-### Feature Overview
-- **Numeric Features**: Time_spent_Alone, Social_event_attendance, Going_outside, Friends_circle_size, Post_frequency
-- **Categorical Features**: Stage_fear (Yes/No), Drained_after_socializing (Yes/No)
-
-### Data Access Pattern
+### Core Processing Functions
 ```python
-import duckdb
-conn = duckdb.connect('/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb')
-train = conn.execute("SELECT * FROM playground_series_s5e7.train").df()
-test = conn.execute("SELECT * FROM playground_series_s5e7.test").df()
+# Primary Data Interface (Single Source)
+load_data() → (train_df, test_df)                    # Raw data access point
+create_bronze_tables() → bronze.train, bronze.test  # Standardized output
+
+# Data Quality Assurance  
+validate_data_quality()     # Type validation, range guards
+advanced_missing_strategy() # Missing value intelligence
+encode_categorical_robust() # Yes/No → binary standardization
+winsorize_outliers()        # Numeric stability processing
 ```
+
+### LightGBM-Optimized Data Quality Pipeline
+**1. Type Safety & Validation**
+- Explicit dtype setting: `int/float/bool/category`
+- Range guards: `Time_spent_Alone ≤ 24hrs`, non-negative behavioral metrics
+- Schema validation preventing downstream corruption
+
+**2. Missing Value Intelligence**
+- **Missing Flags**: Binary indicators for `Stage_fear` (~10%), `Going_outside` (~8%)
+- **LightGBM Native Handling**: Preserve NaN for automatic tree processing
+- **Cross-Feature Patterns**: Leverage high correlation for imputation candidates
+- **Systematic Analysis**: Distinguish missing patterns (random vs systematic)
+
+**3. Categorical Standardization**
+- **Yes/No Normalization**: Case-insensitive unified mapping → {0,1}
+- **LightGBM Binary Optimization**: Optimal encoding for tree splits
+- **Missing Category Handling**: Preserve for downstream LightGBM processing
+
+**4. Leak Prevention Foundation**
+- **Fold-Safe Statistics**: All computed values isolated within CV folds
+- **Pipeline Readiness**: sklearn-compatible transformers for Silver layer
+- **Audit Trail**: Comprehensive metadata for downstream validation
+
+### Bronze Quality Guarantees
+✅ **Single Source of Truth**: All downstream processing uses Bronze tables only  
+✅ **LightGBM Optimized**: Preprocessing specifically designed for tree-based models  
+✅ **Competition Grade**: Implements proven top-tier Kaggle preprocessing patterns  
+✅ **Quality Assured**: Comprehensive validation preventing data corruption  
+✅ **Performance Ready**: Sub-second processing enabling rapid iteration
+
+## 🥈 Silver Layer - Feature Engineering & Domain Knowledge
+
+### Single Source Dependency Chain
+**Input**: Bronze Layer tables (`bronze.train`, `bronze.test`) - **Exclusive Data Source**  
+**Output**: Enhanced DuckDB tables (`silver.train`, `silver.test`)  
+**Dependencies**: `src/data/bronze.py` (Must execute Bronze pipeline first)
+
+### Core Feature Engineering Pipeline
+```python
+# Bronze → Silver Transformation (Single Pipeline)
+load_silver_data() → enhanced_df                    # Consumes: bronze tables only
+create_silver_tables() → silver.train, silver.test # Enhanced feature output
+
+# Feature Engineering Layers (Sequential Processing)
+advanced_features()          # 15+ statistical & domain features  
+s5e7_interaction_features()  # Top-tier interaction patterns
+s5e7_drain_adjusted_features() # Fatigue-adjusted activity modeling
+s5e7_communication_ratios()  # Online vs Offline behavioral ratios
+polynomial_features()        # Degree-2 nonlinear combinations
+```
+
+### Top-Tier Feature Engineering (Bronze → Silver Transformation)
+**1. Winner Solution Interaction Features** (+0.2-0.4% proven impact)
+```python
+# Bronze Input → Silver Enhanced Features
+Social_event_participation_rate = Social_event_attendance ÷ Going_outside
+Non_social_outings = Going_outside - Social_event_attendance  
+Communication_ratio = Post_frequency ÷ (Social_event_attendance + Going_outside)
+Friend_social_efficiency = Social_event_attendance ÷ Friends_circle_size
+```
+
+**2. Fatigue-Adjusted Domain Modeling** (+0.1-0.2% introversion accuracy)
+```python  
+# Psychological Behavior Modeling (Top-Tier Innovation)
+Activity_ratio = comprehensive_activity_index(bronze_features)
+Drain_adjusted_activity = activity_ratio × (1 - Drained_after_socializing)
+Introvert_extrovert_spectrum = quantified_personality_score(bronze_features)
+```
+
+**3. LightGBM Tree-Optimized Features** (+0.3-0.5% tree processing gain)
+- **Missing Preservation**: Inherit Bronze NaN handling for LightGBM native processing
+- **Ratio Features**: Optimized for tree-based splitting patterns
+- **Binary Interactions**: Leverage Bronze categorical standardization
+- **Composite Indicators**: Multi-feature statistical aggregations
+
+### Silver Processing Guarantees  
+✅ **Bronze Dependency**: Exclusively consumes Bronze layer (no raw data access)  
+✅ **Feature Lineage**: Clear traceability from Bronze → Silver transformations  
+✅ **LightGBM Optimized**: All features designed for tree-based model consumption  
+✅ **Competition Proven**: Implements verified top-tier Kaggle techniques  
+✅ **Performance Enhanced**: 30+ engineered features with measured impact expectations
+
+## 🥇 Gold Layer - ML-Ready Data & Model Interface
+
+### Single Source Dependency Chain
+**Input**: Silver Layer tables (`silver.train`, `silver.test`) - **Exclusive Data Source**  
+**Output**: LightGBM-ready arrays (`X_train`, `y_train`, `X_test`)  
+**Dependencies**: `src/data/silver.py` (Must execute Silver pipeline first)
+
+### Core ML Preparation Pipeline
+```python
+# Silver → Gold Transformation (Final ML Interface)
+get_ml_ready_data() → X_train, y_train, X_test     # LightGBM consumption ready
+prepare_model_data() → formatted_arrays            # Model-specific formatting
+
+# ML Optimization Layers (Sequential Processing)
+clean_and_validate_features()   # Data quality final validation
+select_best_features()          # Statistical feature selection (F-test + MI)
+create_submission_format()      # Competition output standardization
+```
+
+### LightGBM Model Interface (Silver → Gold → Model)
+**1. Feature Selection & Optimization**
+```python
+# Silver Input → Gold Optimized Features  
+statistical_selection = F_test + mutual_information(silver_features)
+lightgbm_ready_features = feature_importance_ranking(selected_features)
+X_train, y_train = prepare_training_data(optimized_features)
+X_test = prepare_inference_data(optimized_features)
+```
+
+**2. Production-Ready Data Quality**
+- **Final Validation**: Infinite value processing, outlier detection
+- **Type Consistency**: Ensure LightGBM-compatible data types
+- **Memory Optimization**: Efficient array formats for training
+- **Audit Completeness**: Comprehensive data lineage validation
+
+**3. Competition Output Interface**
+- **Submission Formatting**: Standard Kaggle submission file creation
+- **Model Prediction Interface**: Direct LightGBM consumption format  
+- **Performance Monitoring**: Feature importance and prediction tracking
+
+### Gold Processing Guarantees
+✅ **Silver Dependency**: Exclusively consumes Silver layer (no Bronze/Raw access)  
+✅ **Model Ready**: Direct LightGBM consumption without additional processing  
+✅ **Competition Format**: Standard Kaggle submission file compatibility  
+✅ **Production Quality**: Final validation ensuring model training stability  
+✅ **Performance Optimized**: Feature selection maximizing Bronze Medal target (0.976518)
+
+## 🎯 Medallion Pipeline Development Strategy
+
+### Single Source Processing Flow
+```
+Raw Data → 🥉 Bronze → 🥈 Silver → 🥇 Gold → 🤖 LightGBM → 🏆 Bronze Medal (0.976518)
+```
+
+**Current Phase**: Bronze + Silver optimization for LightGBM baseline  
+**Target**: Single model achieving Bronze Medal threshold  
+**Architecture**: Medallion pipeline ensuring data lineage integrity
+
+## 🗃️ Single Source Data Management (DuckDB)
+
+### Primary Data Source (Single Point of Truth)
+**Database**: `/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb`
+
+### Schema Structure & Data Lineage
+```sql
+-- Raw Competition Data (Original Source)
+playground_series_s5e7.train           # Original Kaggle training data
+playground_series_s5e7.test            # Original Kaggle test data  
+playground_series_s5e7.sample_submission # Original submission format
+
+-- Medallion Pipeline Outputs (Processed Layers)
+bronze.train, bronze.test              # 🥉 Standardized & validated
+silver.train, silver.test              # 🥈 Feature engineered  
+gold.X_train, gold.y_train, gold.X_test # 🥇 ML-ready (optional persistence)
+```
+
+### Data Access Patterns (Single Source Enforcement)
+```python
+# ❌ NEVER: Direct raw data access in Silver/Gold layers
+# ✅ ALWAYS: Use appropriate layer's load functions
+
+# Bronze Layer (Entry Point)
+from src.data.bronze import load_data
+train_raw, test_raw = load_data()  # Only Bronze accesses raw data
+
+# Silver Layer (Bronze Dependency)  
+from src.data.silver import load_silver_data
+train_silver, test_silver = load_silver_data()  # Only accesses Bronze output
+
+# Gold Layer (Silver Dependency)
+from src.data.gold import get_ml_ready_data  
+X_train, y_train, X_test = get_ml_ready_data()  # Only accesses Silver output
+```
+
+### Original Feature Schema (Competition Data)
+- **Target**: `Personality` (Introvert/Extrovert) - Binary classification
+- **ID**: `id` - Row identifier
+- **Numeric Features** (5): Time_spent_Alone, Social_event_attendance, Going_outside, Friends_circle_size, Post_frequency
+- **Categorical Features** (2): Stage_fear (Yes/No), Drained_after_socializing (Yes/No)
+
+### Single Source Benefits
+✅ **Data Lineage**: Clear transformation tracking from Raw → Bronze → Silver → Gold  
+✅ **Dependency Control**: Each layer only accesses its immediate predecessor  
+✅ **Consistency Guarantee**: All downstream processing uses standardized inputs  
+✅ **Debug Efficiency**: Issues traceable to specific pipeline layer  
+✅ **Cache Optimization**: Intermediate results stored in DuckDB for reuse
 
 ## 【DEVELOPMENT COMMANDS】
 
