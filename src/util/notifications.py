@@ -16,7 +16,7 @@ class WebhookNotifier:
         """
         self.webhook_url = webhook_url or os.getenv("WEBHOOK_DISCORD")
         if not self.webhook_url:
-            raise ValueError("Webhook URL not provided and WEBHOOK_DISCORD env var not set")
+            raise ValueError("Webhook URL not provided and " "WEBHOOK_DISCORD env var not set")
 
     def send_message(
         self,
@@ -58,14 +58,19 @@ class WebhookNotifier:
                 {"name": "Model", "value": model_name, "inline": True},
                 {
                     "name": "Config",
-                    "value": f"```json\n{json.dumps(config, indent=2)[:1000]}```",
+                    "value": (f"```json\n" f"{json.dumps(config, indent=2)[:1000]}```"),
                     "inline": False,
                 },
             ],
         }
         return self.send_message("", embeds=[embed])
 
-    def notify_training_complete(self, model_name: str, metrics: Dict[str, float], duration: float) -> bool:
+    def notify_training_complete(
+        self,
+        model_name: str,
+        metrics: Dict[str, float],
+        duration: float,
+    ) -> bool:
         """Notify training completion with metrics."""
         metrics_text = "\n".join([f"{k}: {v:.6f}" for k, v in metrics.items()])
 
@@ -75,7 +80,11 @@ class WebhookNotifier:
             "timestamp": datetime.utcnow().isoformat(),
             "fields": [
                 {"name": "Model", "value": model_name, "inline": True},
-                {"name": "Duration", "value": f"{duration:.2f}s", "inline": True},
+                {
+                    "name": "Duration",
+                    "value": f"{duration:.2f}s",
+                    "inline": True,
+                },
                 {
                     "name": "Metrics",
                     "value": f"```\n{metrics_text}```",
@@ -93,7 +102,11 @@ class WebhookNotifier:
             "timestamp": datetime.utcnow().isoformat(),
             "fields": [
                 {"name": "Stage", "value": stage, "inline": True},
-                {"name": "Error", "value": f"```\n{error[:1000]}```", "inline": False},
+                {
+                    "name": "Error",
+                    "value": f"```\n{error[:1000]}```",
+                    "inline": False,
+                },
             ],
         }
         return self.send_message("", embeds=[embed])
@@ -112,7 +125,13 @@ class WebhookNotifier:
 
         if improvement:
             improvement_text = f"+{improvement:.6f}" if improvement > 0 else f"{improvement:.6f}"
-            fields.append({"name": "Improvement", "value": improvement_text, "inline": True})
+            fields.append(
+                {
+                    "name": "Improvement",
+                    "value": improvement_text,
+                    "inline": True,
+                }
+            )
 
         color = 16776960  # Yellow for submission
         if improvement and improvement > 0:

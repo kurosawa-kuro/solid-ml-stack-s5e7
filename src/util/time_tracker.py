@@ -61,9 +61,9 @@ class WorkflowTimeTracker:
         if estimated_duration:
             estimated_end = datetime.now() + timedelta(seconds=estimated_duration)
             print(f"🚀 Starting workflow: {workflow_name}")
-            print(f"⏱️  Estimated completion: {estimated_end.strftime('%H:%M:%S')} ({int(estimated_duration)}s)")
+            print(f"⏱️  Estimated completion: {estimated_end.strftime('%H:%M:%S')} " f"({int(estimated_duration)}s)")
         else:
-            print(f"🚀 Starting workflow: {workflow_name} (first run, no estimate available)")
+            print(f"🚀 Starting workflow: {workflow_name} " "(first run, no estimate available)")
 
         return start_time
 
@@ -78,10 +78,16 @@ class WorkflowTimeTracker:
 
         # Initialize workflow data if not exists
         if workflow_name not in self.data["workflows"]:
-            self.data["workflows"][workflow_name] = {"executions": [], "statistics": {}}
+            self.data["workflows"][workflow_name] = {
+                "executions": [],
+                "statistics": {},
+            }
 
         # Add new execution record
-        execution = {"timestamp": datetime.now().isoformat(), "duration": duration}
+        execution = {
+            "timestamp": datetime.now().isoformat(),
+            "duration": duration,
+        }
 
         self.data["workflows"][workflow_name]["executions"].append(execution)
 
@@ -181,7 +187,7 @@ class WorkflowTimeTracker:
                 print(f"\n{workflow_name}:")
                 print(f"  Average: {stats.get('average', 0):.2f}s")
                 print(f"  Median: {stats.get('median', 0):.2f}s")
-                print(f"  Range: {stats.get('min', 0):.2f}s - {stats.get('max', 0):.2f}s")
+                print(f"  Range: {stats.get('min', 0):.2f}s - " f"{stats.get('max', 0):.2f}s")
                 print(f"  Runs: {stats.get('count', 0)}")
                 if "std_dev" in stats:
                     print(f"  Std Dev: {stats.get('std_dev', 0):.2f}s")
