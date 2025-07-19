@@ -1,5 +1,5 @@
 """
-Test cases for train.py script
+Test cases for scripts/train.py
 """
 
 import json

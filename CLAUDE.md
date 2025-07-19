@@ -7,39 +7,47 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Problem**: Binary classification (Introvert vs Extrovert)
 - **Metric**: Accuracy
 - **Current Ranking**: 1182/2749 teams (43.0% percentile)
-- **Best Score**: 0.974898
-- **Bronze Target**: 0.976518 (+0.00162 improvement needed)
+- **Current Best**: 0.9684 (CV Score)
+- **Bronze Target**: 0.976518 (+0.008 improvement needed)
 
 ## 【CRITICAL - CURRENT PROJECT STATE】
-### Project Has Been Reset
-- **Previous Implementation Removed**: Over-engineered 76 files/15,000 lines eliminated
-- **Clean Slate**: Only infrastructure files remain (Makefile, pyproject.toml, docs/)
-- **No Active Code**: src/, scripts/, tests/ directories are empty and need implementation
-- **Data Ready**: DuckDB with competition data is prepared at `/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb`
+### Advanced Implementation Stage
+- **Mature Implementation**: Professional ML pipeline with 700+ lines of production-ready code
+- **Bronze Medal Target**: 0.8% improvement needed (Current: 0.9684, Target: 0.976518)
+- **Robust Architecture**: Medallion data management, pipeline integration, comprehensive CV framework
+- **High Test Coverage**: 73% coverage with 475 tests across 18 test files
+- **Data Ready**: DuckDB with competition data prepared at `/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb`
 
-### Previous Problems (Now Resolved by Reset)
-- Over-complexity, data leakage, factory pattern abuse, architectural issues
+### Current Performance Status
+- **Latest CV Score**: 0.9684 ± 0.0020 (96.84% accuracy)
+- **Gap to Bronze**: +0.008 improvement needed
+- **Architecture Quality**: Extensible design preventing future over-engineering
 
-## 【IMPLEMENTATION PLAN】Simple & Effective Approach
+## 【CURRENT ARCHITECTURE】Medallion Design & Pipeline Integration
 ```
-Target Structure (To Be Built):
+Implemented Structure:
 ├── src/
-│   ├── data.py          # DuckDB data loading
-│   ├── features.py      # Feature engineering
-│   ├── models.py        # LightGBM, XGBoost, CatBoost
-│   ├── validation.py    # Cross-validation
-│   ├── ensemble.py      # Model combination
-│   └── submission.py    # Submission generation
+│   ├── data/
+│   │   ├── bronze.py     # ✅ Raw data processing
+│   │   ├── silver.py     # ✅ Feature engineering (30+ features)
+│   │   └── gold.py       # ✅ ML-ready data pipeline
+│   ├── models.py         # ✅ LightGBM with pipeline integration (696 lines)
+│   ├── validation.py     # ✅ CV framework with leak prevention (316 lines)
+│   └── util/
+│       ├── time_tracker.py   # ✅ Development efficiency tracking
+│       └── notifications.py  # ✅ Workflow notifications
 ├── scripts/
-│   └── workflow.py      # Main pipeline
-└── tests/
-    └── test_*.py        # Unit tests
+│   ├── train.py          # ✅ Basic training
+│   ├── train_light.py    # ✅ Fast iteration (322 lines)
+│   ├── train_enhanced.py # ✅ Advanced pipeline
+│   └── train_heavy.py    # ✅ Full optimization
+└── tests/                # ✅ 73% coverage, 475 tests
 ```
 
-### Implementation Strategy
-1. **Phase 1**: Simple LightGBM baseline (target: 0.975+)
-2. **Phase 2**: Add XGBoost/CatBoost + feature engineering
-3. **Phase 3**: Ensemble optimization (target: 0.976518+ for bronze)
+### Current Development Strategy
+1. **Bronze Optimization** (Active): Hyperparameter tuning, feature selection → 0.976518
+2. **Silver Expansion** (Ready): XGBoost/CatBoost ensemble, advanced features
+3. **Gold Evolution** (Prepared): Multi-competition reusability, production deployment
 
 ## 【DATA MANAGEMENT】DuckDB Ready
 - **Database Path**: `/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb`
@@ -75,19 +83,21 @@ make clean               # Clean outputs
 make help                # Show available commands
 ```
 
-### Target Commands (After Implementation)
+### Available Commands (Implemented)
 ```bash
-# Development workflow
-make data-explore        # Initial data exploration
-make baseline           # Run LightGBM baseline
-make models             # Train all models (LGB, XGB, CatBoost)
-make ensemble           # Create ensemble predictions
-make submit             # Generate submission file
+# Core workflow
+make install              # ✅ Install dependencies
+make dev-install         # ✅ Install with dev tools
+make test                # ✅ Run 475 tests (73% coverage)
+make quick-test          # ✅ Fast model validation
+make personality-prediction  # ✅ Full training pipeline
+make clean               # ✅ Clean outputs
 
-# Individual model tests
-make model-lgb          # LightGBM only
-make model-xgb          # XGBoost only
-make model-cat          # CatBoost only
+# Training variations
+python scripts/train_light.py    # ✅ Fast iteration (0.5s)
+python scripts/train.py          # ✅ Standard training
+python scripts/train_enhanced.py # ✅ Advanced features
+python scripts/train_heavy.py    # ✅ Full optimization
 ```
 
 ## 【DEPENDENCIES & ENVIRONMENT】
@@ -107,19 +117,26 @@ pip install -e .[visualization]    # + plotting libraries
 - **Development**: pytest, black, flake8, mypy
 - **Python**: 3.8+
 
-## 【PROVEN BENCHMARKS】Previous Performance
-- **LightGBM**: 96.90% (±0.24%) ← Best single model
-- **XGBoost**: 96.86% (±0.23%)
-- **Random Forest**: 96.77% (±0.21%)
-- **Prediction Distribution**: Extrovert 74.7%, Introvert 25.3%
+## 【CURRENT PERFORMANCE】Recent Training Results
+- **Light Enhanced Model**: 96.79% ± 0.22% (Latest run, 30 features)
+- **Baseline Model**: 96.84% ± 0.20% (Best CV score, 10 features) 
+- **Training Efficiency**: 0.5 seconds (light), 0.39 seconds (baseline)
+- **Feature Importance**: poly_extrovert_score_Post_frequency (257.6) leads
+- **Bronze Gap**: +0.8% needed (highly achievable with optimization)
+
+### Performance Analysis
+- **Consistent Results**: Low standard deviation indicates stable model
+- **Fast Iteration**: Sub-second training enables rapid experimentation
+- **Feature Quality**: Polynomial features show strong predictive power
 
 ## 【IMPLEMENTATION GUIDELINES】
 
-### Design Principles
-- **Keep It Simple**: Single-file modules, no over-engineering
-- **Leak Prevention**: Proper CV-aware preprocessing
-- **Trust Your CV**: StratifiedKFold validation
-- **Data-Driven**: Focus on effective features only
+### Design Principles (Balanced Approach)
+- **Extensible Simplicity**: Clean abstractions that support growth without complexity
+- **Leak Prevention**: Pipeline integration ensures CV-aware preprocessing (implemented)
+- **Trust Your CV**: StratifiedKFold with integrity validation (implemented)
+- **Evidence-Based**: Feature engineering based on importance analysis
+- **Incremental Development**: Medallion architecture supports progressive enhancement
 
 ### Key Implementation Notes
 - **No CSV Files**: All data access through DuckDB only
@@ -127,15 +144,30 @@ pip install -e .[visualization]    # + plotting libraries
 - **Classification Setup**: Binary classification for `Personality` target
 - **Accuracy Metric**: Primary evaluation criterion
 
-### Development Workflow
-1. **Start Simple**: Basic LightGBM with minimal features
-2. **Iterate Fast**: Small improvements, frequent validation
-3. **Add Complexity Gradually**: Only when proven beneficial
-4. **Test Everything**: Unit tests for all components
-5. **Trust CV**: Don't overfit to public leaderboard
+### Development Workflow (Optimized)
+1. **Optimize Current**: Hyperparameter tuning and feature selection for bronze
+2. **Iterate Fast**: 0.5-second training cycles enable rapid experimentation
+3. **Validate Rigorously**: Data leak prevention and CV integrity checks (implemented)
+4. **Test Comprehensively**: 73% coverage with integration tests (implemented)
+5. **Scale Thoughtfully**: Medallion architecture supports controlled expansion
 
 ## 【SUCCESS CRITERIA】
-- **Performance**: 0.976518+ accuracy (bronze medal threshold)
-- **Code Quality**: Clean, simple, maintainable implementation
-- **Reliability**: Reproducible results with proper CV validation
-- **Efficiency**: Fast development cycles, quick iterations
+- **Bronze Medal**: 0.976518+ accuracy (+0.8% from current 0.9684)
+- **Architecture Quality**: Extensible design with controlled complexity
+- **Reliability**: Data leak prevention, reproducible CV results (implemented)
+- **Development Efficiency**: Sub-second training, comprehensive testing (implemented)
+- **Long-term Value**: Reusable patterns for future competitions
+
+## 【BRONZE MEDAL ROADMAP】
+### Immediate Opportunities (1-2 weeks)
+1. **Hyperparameter Optimization**: Leverage existing Optuna integration
+2. **Feature Selection**: Focus on top importance features (poly_extrovert_score_*)
+3. **Model Ensemble**: Combine CV folds for prediction stability
+4. **Threshold Tuning**: Optimize classification threshold for accuracy
+
+### Technical Assets Ready
+- ✅ **Data Leak Prevention**: Pipeline integration implemented
+- ✅ **CV Framework**: Integrity validation and stratified sampling
+- ✅ **Feature Engineering**: 30+ engineered features with importance ranking
+- ✅ **Optimization Infrastructure**: Optuna integration for hyperparameter tuning
+- ✅ **Performance Monitoring**: Time tracking and comprehensive logging
