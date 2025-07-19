@@ -20,36 +20,45 @@ warnings.filterwarnings('ignore', category=UserWarning)
 
 
 def advanced_features(df: pd.DataFrame) -> pd.DataFrame:
-    """高度な特徴量エンジニアリング - 15+ statistical & domain features"""
+    """高度な特徴量エンジニアリング - 30+ statistical & domain features"""
     df = df.copy()
 
-    # Bronze層の特徴量を活用（重複を避ける）
-    bronze_features = [
-        'social_participation_rate', 'communication_ratio', 'friend_social_efficiency',
-        'non_social_outings', 'activity_balance', 'social_ratio', 'activity_sum'
-    ]
+    # Winner Solution features (from CLAUDE.md specifications) - Silver層で生成
+    if "Social_event_attendance" in df.columns and "Going_outside" in df.columns:
+        df["social_participation_rate"] = (
+            df["Social_event_attendance"] / (df["Going_outside"] + 1e-8)
+        ).astype('float32')
     
-    # Bronze層の特徴量が存在しない場合は作成
-    if 'social_participation_rate' not in df.columns and 'Social_event_attendance' in df.columns and 'Going_outside' in df.columns:
-        df['social_participation_rate'] = df['Social_event_attendance'] / (df['Going_outside'] + 1e-8)
+    if "Post_frequency" in df.columns and "Social_event_attendance" in df.columns and "Going_outside" in df.columns:
+        total_activity = df["Social_event_attendance"] + df["Going_outside"]
+        df["communication_ratio"] = (
+            df["Post_frequency"] / (total_activity + 1e-8)
+        ).astype('float32')
     
-    if 'communication_ratio' not in df.columns and all(col in df.columns for col in ['Post_frequency', 'Social_event_attendance', 'Going_outside']):
-        df['communication_ratio'] = df['Post_frequency'] / (df['Social_event_attendance'] + df['Going_outside'] + 1e-8)
+    if "Social_event_attendance" in df.columns and "Friends_circle_size" in df.columns:
+        df["friend_social_efficiency"] = (
+            df["Social_event_attendance"] / (df["Friends_circle_size"] + 1e-8)
+        ).astype('float32')
     
-    if 'friend_social_efficiency' not in df.columns and 'Social_event_attendance' in df.columns and 'Friends_circle_size' in df.columns:
-        df['friend_social_efficiency'] = df['Social_event_attendance'] / (df['Friends_circle_size'] + 1e-8)
+    if "Going_outside" in df.columns and "Social_event_attendance" in df.columns:
+        df["non_social_outings"] = (
+            df["Going_outside"] - df["Social_event_attendance"]
+        ).astype('float32')
     
-    if 'non_social_outings' not in df.columns and 'Going_outside' in df.columns and 'Social_event_attendance' in df.columns:
-        df['non_social_outings'] = df['Going_outside'] - df['Social_event_attendance']
+    if "Time_spent_Alone" in df.columns and "Social_event_attendance" in df.columns:
+        df["activity_balance"] = (
+            df["Social_event_attendance"] / (df["Time_spent_Alone"] + 1e-8)
+        ).astype('float32')
     
-    if 'activity_balance' not in df.columns and 'Social_event_attendance' in df.columns and 'Time_spent_Alone' in df.columns:
-        df['activity_balance'] = df['Social_event_attendance'] / (df['Time_spent_Alone'] + 1e-8)
-    
-    if 'social_ratio' not in df.columns and 'Social_event_attendance' in df.columns and 'Time_spent_Alone' in df.columns:
-        df['social_ratio'] = df['Social_event_attendance'] / (df['Time_spent_Alone'] + 1e-8)
-    
-    if 'activity_sum' not in df.columns and 'Going_outside' in df.columns and 'Social_event_attendance' in df.columns:
-        df['activity_sum'] = df['Going_outside'] + df['Social_event_attendance']
+    if "Social_event_attendance" in df.columns and "Time_spent_Alone" in df.columns:
+        df["social_ratio"] = (
+            df["Social_event_attendance"] / (df["Time_spent_Alone"] + 1e-8)
+        ).astype('float32')
+
+    if "Going_outside" in df.columns and "Social_event_attendance" in df.columns:
+        df["activity_sum"] = (
+            df["Going_outside"] + df["Social_event_attendance"]
+        ).astype('float32')
 
     # 新しい特徴量（Silver層固有）
     numeric_cols = [
@@ -294,26 +303,29 @@ def create_silver_tables() -> None:
         test_bronze = conn.execute("SELECT * FROM bronze.test").df()
 
     # Apply Silver layer processing pipeline (CLAUDE.md specification)
+    # Bronze層からは品質保証されたデータのみを受け取り、全ての特徴量をSilver層で生成
+    
+    # Step 1: Advanced features (Winner Solution + 統計特徴量)
     train_silver = advanced_features(train_bronze)
     test_silver = advanced_features(test_bronze)
 
-    # Winner Solution Interaction Features (+0.2-0.4% proven impact)
+    # Step 2: Winner Solution Interaction Features (+0.2-0.4% proven impact)
     train_silver = s5e7_interaction_features(train_silver)
     test_silver = s5e7_interaction_features(test_silver)
 
-    # Fatigue-Adjusted Domain Modeling (+0.1-0.2% introversion accuracy)
+    # Step 3: Fatigue-Adjusted Domain Modeling (+0.1-0.2% introversion accuracy)
     train_silver = s5e7_drain_adjusted_features(train_silver)
     test_silver = s5e7_drain_adjusted_features(test_silver)
 
-    # Online vs Offline behavioral ratios
+    # Step 4: Online vs Offline behavioral ratios
     train_silver = s5e7_communication_ratios(train_silver)
     test_silver = s5e7_communication_ratios(test_silver)
 
-    # Enhanced interaction features (legacy support)
+    # Step 5: Enhanced interaction features (追加の交互作用)
     train_silver = enhanced_interaction_features(train_silver)
     test_silver = enhanced_interaction_features(test_silver)
 
-    # Degree-2 nonlinear combinations
+    # Step 6: Degree-2 nonlinear combinations (多項式特徴量)
     train_silver = polynomial_features(train_silver, degree=2)
     test_silver = polynomial_features(test_silver, degree=2)
 
@@ -330,7 +342,10 @@ def create_silver_tables() -> None:
     print("Silver tables created: ")
     print(f"- silver.train: {len(train_silver)} rows, {len(train_silver.columns)} columns")
     print(f"- silver.test: {len(test_silver)} rows, {len(test_silver.columns)} columns")
-    print(f"- Total engineered features: {len(train_silver.columns) - len(train_bronze.columns)}")
+    print(f"- 30+ Engineered Features: {len(train_silver.columns) - len(train_bronze.columns)} features generated")
+    print(f"- Winner Solution features: {len([col for col in train_silver.columns if any(keyword in col for keyword in ['participation_rate', 'communication_ratio', 'social_efficiency'])])}")
+    print(f"- Interaction features: {len([col for col in train_silver.columns if 'interaction' in col.lower()])}")
+    print(f"- Polynomial features: {len([col for col in train_silver.columns if col.startswith('poly_')])}")
 
     conn.close()
 

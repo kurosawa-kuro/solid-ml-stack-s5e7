@@ -193,55 +193,7 @@ def winsorize_outliers(df: pd.DataFrame, percentile: float = 0.01) -> pd.DataFra
     return df
 
 
-def basic_features(df: pd.DataFrame) -> pd.DataFrame:
-    """Winner Solution features with proven impact (+0.2-0.4%)"""
-    df = df.copy()
-    
-    # Winner Solution features (from CLAUDE.md specifications)
-    
-    # Social event participation rate (+0.2-0.4% proven impact)
-    if "Social_event_attendance" in df.columns and "Going_outside" in df.columns:
-        df["social_participation_rate"] = (
-            df["Social_event_attendance"] / (df["Going_outside"] + 1)
-        ).astype('float32')
-    
-    # Communication ratio (+0.2-0.4% proven impact)
-    if "Post_frequency" in df.columns and "Social_event_attendance" in df.columns and "Going_outside" in df.columns:
-        total_activity = df["Social_event_attendance"] + df["Going_outside"]
-        df["communication_ratio"] = (
-            df["Post_frequency"] / (total_activity + 1)
-        ).astype('float32')
-    
-    # Friend social efficiency (+0.2-0.4% proven impact)
-    if "Social_event_attendance" in df.columns and "Friends_circle_size" in df.columns:
-        df["friend_social_efficiency"] = (
-            df["Social_event_attendance"] / (df["Friends_circle_size"] + 1)
-        ).astype('float32')
-    
-    # Non-social outings (Winner Solution pattern)
-    if "Going_outside" in df.columns and "Social_event_attendance" in df.columns:
-        df["non_social_outings"] = (
-            df["Going_outside"] - df["Social_event_attendance"]
-        ).astype('float32')
-    
-    # Activity balance ratio
-    if "Time_spent_Alone" in df.columns and "Social_event_attendance" in df.columns:
-        df["activity_balance"] = (
-            df["Social_event_attendance"] / (df["Time_spent_Alone"] + 1)
-        ).astype('float32')
-    
-    # Legacy features for backward compatibility
-    if "Social_event_attendance" in df.columns and "Time_spent_Alone" in df.columns:
-        df["social_ratio"] = (
-            df["Social_event_attendance"] / (df["Time_spent_Alone"] + 1)
-        ).astype('float32')
 
-    if "Going_outside" in df.columns and "Social_event_attendance" in df.columns:
-        df["activity_sum"] = (
-            df["Going_outside"] + df["Social_event_attendance"]
-        ).astype('float32')
-
-    return df
 
 
 def create_bronze_tables() -> None:
@@ -264,10 +216,6 @@ def create_bronze_tables() -> None:
     train_bronze = winsorize_outliers(train_bronze)
     test_bronze = winsorize_outliers(test_bronze)
     
-    # Add Winner Solution features
-    train_bronze = basic_features(train_bronze)
-    test_bronze = basic_features(test_bronze)
-    
     # Validate data quality
     train_validation = validate_data_quality(train_bronze)
     test_validation = validate_data_quality(test_bronze)
@@ -286,7 +234,7 @@ def create_bronze_tables() -> None:
     print(f"- bronze.train: {len(train_bronze)} rows, {len(train_bronze.columns)} columns")
     print(f"- bronze.test: {len(test_bronze)} rows, {len(test_bronze.columns)} columns")
     print(f"- Data quality validation: {len([k for k, v in train_validation['type_validation'].items() if v])} types passed")
-    print(f"- Winner Solution features added: {len([col for col in train_bronze.columns if any(keyword in col for keyword in ['participation_rate', 'communication_ratio', 'social_efficiency'])])}")
+    print(f"- Bronze layer features: {len(train_bronze.columns)} columns (quality assured)")
     
     conn.close()
 
