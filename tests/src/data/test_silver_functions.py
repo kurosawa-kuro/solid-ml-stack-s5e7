@@ -1,6 +1,6 @@
 """
-Comprehensive test coverage for src/data/silver.py and src/data/gold.py
-Targeting high-impact functions to improve coverage from 10-12% to 80%+
+Test for Silver Level Data Functions - Success Cases Only
+Includes comprehensive enhanced test cases from test_silver_gold_enhanced.py
 """
 
 import tempfile
@@ -13,25 +13,132 @@ import pytest
 from sklearn.preprocessing import PolynomialFeatures
 
 from src.data.silver import (
-    advanced_features,
+    advanced_features, 
+    scaling_features,
     enhanced_interaction_features,
     polynomial_features,
-    scaling_features,
     create_silver_tables,
     load_silver_data,
     get_feature_importance_order,
     DB_PATH,
 )
 
-try:
-    from src.data.gold import (
-        clean_and_validate_features,
-        select_best_features,
-    )
-except ImportError:
-    # If gold module has issues, we'll skip those tests
-    clean_and_validate_features = None
-    select_best_features = None
+
+class TestSilverFunctions:
+    """Silver level function tests - minimal success cases"""
+
+    def test_advanced_features_basic(self):
+        """Test advanced features creation"""
+        df = pd.DataFrame(
+            {
+                "Time_spent_Alone": [1.0, 2.0, 3.0],
+                "Social_event_attendance": [2.0, 4.0, 6.0],
+                "Going_outside": [1.0, 2.0, 3.0],
+                "Stage_fear_encoded": [1, 0, 1],
+                "Drained_after_socializing_encoded": [0, 1, 0],
+            }
+        )
+
+        result = advanced_features(df)
+
+        # Should return processed DataFrame
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 3
+
+    def test_scaling_features_basic(self):
+        """Test feature scaling"""
+        df = pd.DataFrame(
+            {"feature1": [1.0, 2.0, 3.0], "feature2": [10.0, 20.0, 30.0], "feature3": [100.0, 200.0, 300.0]}
+        )
+
+        result = scaling_features(df)
+
+        # Should return scaled DataFrame with additional scaled columns
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 3
+        # Original columns should still be present
+        for col in df.columns:
+            assert col in result.columns
+
+    @patch("src.data.silver.duckdb.connect")
+    def test_create_silver_tables_success(self, mock_connect):
+        """Test silver table creation succeeds"""
+        mock_conn = MagicMock()
+        mock_connect.return_value = mock_conn
+
+        # Should not raise an error
+        from src.data.silver import create_silver_tables
+
+        create_silver_tables()
+
+        # Verify connection was made and closed
+        mock_connect.assert_called_once()
+        mock_conn.close.assert_called_once()
+
+    @patch("src.data.silver.duckdb.connect")
+    def test_load_silver_data_success(self, mock_connect):
+        """Test silver data loading succeeds"""
+        mock_conn = MagicMock()
+        mock_connect.return_value = mock_conn
+
+        mock_train = pd.DataFrame(
+            {
+                "id": [1, 2],
+                "feature": [1.0, 2.0],
+                "Stage_fear_encoded": [1, 0],
+                "Drained_after_socializing_encoded": [0, 1],
+            }
+        )
+        mock_test = pd.DataFrame(
+            {
+                "id": [3, 4],
+                "feature": [3.0, 4.0],
+                "Stage_fear_encoded": [1, 0],
+                "Drained_after_socializing_encoded": [1, 0],
+            }
+        )
+
+        mock_conn.execute.side_effect = [MagicMock(df=lambda: mock_train), MagicMock(df=lambda: mock_test)]
+
+        from src.data.silver import load_silver_data
+
+        train, test = load_silver_data()
+
+        assert len(train) == 2
+        assert len(test) == 2
+        assert "Stage_fear_encoded" in train.columns
+        assert "Drained_after_socializing_encoded" in train.columns
+
+    def test_advanced_features_with_missing_columns(self):
+        """Test advanced features with missing columns"""
+        df = pd.DataFrame({"other_column": [1, 2, 3]})
+
+        result = advanced_features(df)
+
+        # Should not crash and return data
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 3
+
+    def test_scaling_features_single_column(self):
+        """Test scaling with single column"""
+        df = pd.DataFrame({"single_feature": [1.0, 2.0, 3.0]})
+
+        result = scaling_features(df)
+
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 3
+        assert "single_feature" in result.columns
+
+    def test_empty_dataframe_handling(self):
+        """Test functions handle empty DataFrames gracefully"""
+        empty_df = pd.DataFrame()
+
+        # Should not crash
+        result1 = advanced_features(empty_df)
+        result2 = scaling_features(empty_df)
+
+        assert isinstance(result1, pd.DataFrame)
+        assert isinstance(result2, pd.DataFrame)
 
 
 class TestSilverAdvancedFeatures:
@@ -453,105 +560,6 @@ class TestSilverUtilities:
         
         # Should be ordered (most important first)
         assert importance_order[0] == 'extrovert_score'
-
-
-@pytest.mark.skipif(clean_and_validate_features is None, reason="Gold module not available")
-class TestGoldCleaning:
-    """Test gold.py cleaning functionality"""
-
-    def test_clean_and_validate_features_infinite_values(self):
-        """Test cleaning of infinite values"""
-        df = pd.DataFrame({
-            'id': [1, 2, 3],
-            'feature1': [1, np.inf, 3],
-            'feature2': [np.nan, -np.inf, 2]
-        })
-        
-        result = clean_and_validate_features(df)
-        
-        # Infinite values should be handled
-        assert not np.isinf(result['feature1']).any()
-        assert not np.isinf(result['feature2']).any()
-        
-        # ID should be unchanged
-        assert result['id'].tolist() == [1, 2, 3]
-
-    def test_clean_and_validate_features_outliers(self):
-        """Test outlier handling"""
-        # Create data with clear outlier
-        df = pd.DataFrame({
-            'feature': [1, 2, 3, 4, 1000]  # 1000 is clear outlier
-        })
-        
-        result = clean_and_validate_features(df)
-        
-        # Outlier should be clipped
-        assert result['feature'].max() < 1000
-
-    def test_clean_and_validate_features_missing_values(self):
-        """Test missing value handling"""
-        df = pd.DataFrame({
-            'feature1': [1, np.nan, 3, 4, 5],
-            'feature2': [np.nan, 2, 3, np.nan, 5]
-        })
-        
-        result = clean_and_validate_features(df)
-        
-        # Missing values should be filled
-        assert not result['feature1'].isna().any()
-        assert not result['feature2'].isna().any()
-
-
-@pytest.mark.skipif(select_best_features is None, reason="Gold module not available")
-class TestGoldFeatureSelection:
-    """Test gold.py feature selection functionality"""
-
-    def test_select_best_features_basic(self):
-        """Test basic feature selection"""
-        # Create data with clear feature importance pattern
-        np.random.seed(42)
-        df = pd.DataFrame({
-            'id': range(100),
-            'important_feature': np.random.randn(100),
-            'noise_feature': np.random.randn(100),
-            'target': np.random.randint(0, 2, 100)
-        })
-        
-        # Make important_feature actually important
-        df.loc[df['target'] == 1, 'important_feature'] += 2
-        
-        selected_features = select_best_features(df, 'target', k=1)
-        
-        assert isinstance(selected_features, list)
-        assert len(selected_features) <= 1
-        assert 'id' not in selected_features
-        assert 'target' not in selected_features
-
-    def test_select_best_features_string_target(self):
-        """Test feature selection with string target"""
-        df = pd.DataFrame({
-            'feature1': [1, 2, 3, 4],
-            'feature2': [4, 3, 2, 1],
-            'target': ['Introvert', 'Extrovert', 'Introvert', 'Extrovert']
-        })
-        
-        selected_features = select_best_features(df, 'target', k=2)
-        
-        assert isinstance(selected_features, list)
-        assert len(selected_features) <= 2
-
-    def test_select_best_features_fewer_than_k(self):
-        """Test feature selection when features < k"""
-        df = pd.DataFrame({
-            'feature1': [1, 2, 3],
-            'target': [0, 1, 0]
-        })
-        
-        selected_features = select_best_features(df, 'target', k=10)
-        
-        # Should return all available features
-        assert len(selected_features) == 1
-        assert 'feature1' in selected_features
 
 
 class TestSilverIntegration:

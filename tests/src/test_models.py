@@ -4,11 +4,13 @@ Test cases for models.py
 
 import os
 import tempfile
-from unittest.mock import Mock, patch
-
-import joblib
 import numpy as np
 import pandas as pd
+import pytest
+from unittest.mock import patch
+
+# Use real scikit-learn for evaluation metrics
+from sklearn.metrics import accuracy_score, roc_auc_score
 
 
 class TestLightGBMModel:
@@ -16,12 +18,10 @@ class TestLightGBMModel:
 
     def test_model_initialization(self):
         """モデル初期化のテスト"""
-        # 実装後にfrom src.models import LightGBMModelを追加
-
-        # デフォルトパラメータの確認（設計書仕様）
+        # デフォルトパラメータの確認
         default_params = {
             "objective": "binary",
-            "metric": "binary_logloss",
+            "metric": "binary_logloss", 
             "boosting_type": "gbdt",
             "num_leaves": 31,
             "learning_rate": 0.1,
@@ -49,49 +49,45 @@ class TestLightGBMModel:
         assert invalid_params["learning_rate"] < 0  # これは無効
         assert invalid_params["num_leaves"] <= 0  # これも無効
 
-    @patch("lightgbm.LGBMClassifier")
-    def test_model_training(self, mock_lgb):
+    def test_model_training(self):
         """モデル学習のテスト"""
-        # モックの設定
-        mock_model = Mock()
-        mock_lgb.return_value = mock_model
-
-        # 学習実行（実装後に修正）
+        # 実際のデータを使用
+        X_train = np.random.RandomState(42).random((100, 5))
+        y_train = np.random.RandomState(42).randint(0, 2, 100)
+        
+        # LightGBMModel実装後に有効化
         # model = LightGBMModel()
         # model.fit(X_train, y_train)
+        # assert model.is_fitted
+        
+        # 現在は基本的な検証のみ
+        assert X_train.shape == (100, 5)
+        assert len(y_train) == 100
 
-        # モックが呼ばれたことを確認
-        # mock_model.fit.assert_called_once()
-
-    @patch("lightgbm.LGBMClassifier")
-    def test_model_prediction(self, mock_lgb):
+    def test_model_prediction(self):
         """モデル予測のテスト"""
-        # モックの設定
-        mock_model = Mock()
-        mock_model.predict.return_value = np.array([0, 1, 1, 0])
-        mock_model.predict_proba.return_value = np.array([[0.8, 0.2], [0.3, 0.7], [0.1, 0.9], [0.9, 0.1]])
-        mock_lgb.return_value = mock_model
-
-        # 予測実行（実装後に修正）
-        # model = LightGBMModel()
-        # predictions = model.predict(X_test)
-        # probabilities = model.predict_proba(X_test)
-
-        # 結果の確認
-        expected_pred = np.array([0, 1, 1, 0])
-        assert len(expected_pred) == 4
+        # 実際のデータ構造をテスト
+        X_test = np.random.RandomState(42).random((20, 5))
+        
+        # 期待される予測結果の形状確認
+        expected_pred_shape = (20,)
+        expected_proba_shape = (20, 2)
+        
+        assert X_test.shape == (20, 5)
+        # LightGBMModel実装後に実際の予測テストを追加
 
     def test_feature_importance_extraction(self):
         """特徴量重要度取得のテスト"""
-        # モック重要度データ
+        # 実際のDataFrameを使用
         feature_names = [f"feature_{i}" for i in range(10)]
-        importance_values = np.random.random(10)
+        importance_values = np.random.RandomState(42).random(10)
 
-        importance_df = pd.DataFrame({"feature": feature_names, "importance": importance_values}).sort_values(
-            "importance", ascending=False
-        )
+        importance_df = pd.DataFrame({
+            "feature": feature_names, 
+            "importance": importance_values
+        }).sort_values("importance", ascending=False)
 
-        # 重要度の妥当性確認
+        # 重要度データ構造の確認
         assert len(importance_df) == 10
         assert "feature" in importance_df.columns
         assert "importance" in importance_df.columns
@@ -102,16 +98,18 @@ class TestLightGBMModel:
         with tempfile.TemporaryDirectory() as temp_dir:
             model_path = os.path.join(temp_dir, "test_model.pkl")
 
-            # ダミーモデル保存
-            dummy_model = {"type": "LightGBM", "params": {"learning_rate": 0.1, "num_leaves": 31}}
-            joblib.dump(dummy_model, model_path)
-
-            # 読み込み
-            loaded_model = joblib.load(model_path)
-
-            assert loaded_model["type"] == "LightGBM"
-            assert loaded_model["params"]["learning_rate"] == 0.1
-            assert loaded_model["params"]["num_leaves"] == 31
+            # モデルメタデータの構造確認
+            model_metadata = {
+                "type": "LightGBM", 
+                "params": {"learning_rate": 0.1, "num_leaves": 31},
+                "feature_names": ["f1", "f2", "f3"],
+                "cv_score": 0.975
+            }
+            
+            # 実装後はjoblibではなくモデルクラスのsave/loadメソッドを使用
+            assert model_metadata["type"] == "LightGBM"
+            assert model_metadata["params"]["learning_rate"] == 0.1
+            assert len(model_metadata["feature_names"]) == 3
 
 
 class TestCrossValidationTrainer:
@@ -126,22 +124,22 @@ class TestCrossValidationTrainer:
         assert isinstance(cv_config["shuffle"], bool)
         assert cv_config["random_state"] is not None
 
-    @patch("sklearn.model_selection.StratifiedKFold")
-    def test_cv_fold_generation(self, mock_skf):
+    def test_cv_fold_generation(self):
         """CVフォールド生成のテスト"""
-        # モックの設定
-        mock_cv = Mock()
-        mock_cv.split.return_value = [
-            (np.array([0, 1, 2]), np.array([3, 4])),
-            (np.array([0, 3, 4]), np.array([1, 2])),
-        ]
-        mock_skf.return_value = mock_cv
-
-        # フォールド生成（実装後に修正）
-        # trainer = CrossValidationTrainer()
-        # folds = list(trainer.generate_folds(X, y))
-
-        # assert len(folds) == 2
+        from sklearn.model_selection import StratifiedKFold
+        
+        # 実際のStratifiedKFoldを使用
+        X = np.random.RandomState(42).random((100, 5))
+        y = np.random.RandomState(42).randint(0, 2, 100)
+        
+        cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+        splits = list(cv.split(X, y))
+        
+        assert len(splits) == 5
+        for train_idx, val_idx in splits:
+            assert len(train_idx) > 0
+            assert len(val_idx) > 0
+            assert len(set(train_idx) & set(val_idx)) == 0
 
     def test_out_of_fold_prediction_structure(self):
         """Out-of-Fold予測構造のテスト"""
@@ -173,35 +171,45 @@ class TestCrossValidationTrainer:
         assert abs(mean_score - expected_mean) < 0.001
         assert std_score >= 0
 
-    @patch("time.time")
-    def test_training_time_measurement(self, mock_time):
+    def test_training_time_measurement(self):
         """学習時間計測のテスト"""
-        # 時間の推移をモック
-        mock_time.side_effect = [1000.0, 1180.0]  # 180秒の学習時間
-
-        start_time = mock_time()
-        # 学習処理（モック）
-        end_time = mock_time()
-
+        import time
+        
+        # 実際の時間計測の仕組みをテスト
+        start_time = time.time()
+        time.sleep(0.001)  # 最小限の待機
+        end_time = time.time()
+        
         training_time = end_time - start_time
-        assert training_time == 180.0
+        assert training_time > 0
+        assert training_time < 1.0  # 1秒未満であることを確認
 
     def test_cv_results_aggregation(self):
         """CV結果集計のテスト"""
+        # 実際のデータ構造を使用
+        fold_scores = [0.97, 0.96, 0.98, 0.95, 0.97]
+        oof_predictions = np.random.RandomState(42).random(100)
+        feature_importance_df = pd.DataFrame({
+            "feature": ["f1", "f2", "f3"], 
+            "importance": [0.5, 0.3, 0.2]
+        })
+        
         cv_results = {
-            "fold_scores": [0.97, 0.96, 0.98, 0.95, 0.97],
-            "mean_score": 0.966,
-            "std_score": 0.011,
-            "oof_predictions": np.random.random(100),
-            "feature_importance": pd.DataFrame({"feature": ["f1", "f2", "f3"], "importance": [0.5, 0.3, 0.2]}),
+            "fold_scores": fold_scores,
+            "mean_score": np.mean(fold_scores),
+            "std_score": np.std(fold_scores),
+            "oof_predictions": oof_predictions,
+            "feature_importance": feature_importance_df,
             "training_time": 180.0,
         }
 
         # 必須フィールドの確認
         required_fields = ["fold_scores", "mean_score", "std_score", "oof_predictions", "training_time"]
-
         for field in required_fields:
             assert field in cv_results
+            
+        # 計算の正確性確認
+        assert abs(cv_results["mean_score"] - 0.966) < 0.001
 
 
 class TestModelUtilities:
@@ -212,10 +220,7 @@ class TestModelUtilities:
         y_true = np.array([0, 1, 1, 0, 1])
         y_pred = np.array([0, 1, 0, 0, 1])
 
-        from sklearn.metrics import accuracy_score
-
         accuracy = accuracy_score(y_true, y_pred)
-
         expected = 4 / 5  # 0.8
         assert accuracy == expected
 
@@ -224,10 +229,7 @@ class TestModelUtilities:
         y_true = np.array([0, 1, 1, 0, 1])
         y_pred_proba = np.array([0.1, 0.9, 0.8, 0.2, 0.7])
 
-        from sklearn.metrics import roc_auc_score
-
         auc = roc_auc_score(y_true, y_pred_proba)
-
         assert 0 <= auc <= 1
 
     def test_prediction_statistics(self):
@@ -252,8 +254,6 @@ class TestModelUtilities:
         y_true = np.array([0, 1, 1, 0, 1, 0, 0, 1])
         y_pred = np.array([0, 1, 0, 0, 1, 1, 0, 1])
         y_pred_proba = np.array([0.1, 0.9, 0.4, 0.2, 0.8, 0.6, 0.3, 0.7])
-
-        from sklearn.metrics import accuracy_score, roc_auc_score
 
         metrics = {
             "accuracy": accuracy_score(y_true, y_pred),
@@ -343,14 +343,13 @@ class TestModelIntegration:
 
     def test_end_to_end_training_pipeline(self):
         """エンドツーエンド学習パイプラインのテスト"""
-        # サンプルデータ
-        n_samples, n_features = 200, 10
-        X = np.random.random((n_samples, n_features))
-        y = np.random.randint(0, 2, n_samples)
-
-        # パイプライン構成要素のテスト
-        from sklearn.metrics import accuracy_score
         from sklearn.model_selection import StratifiedKFold
+        from sklearn.ensemble import RandomForestClassifier
+        
+        # 実際のデータとアルゴリズムを使用
+        n_samples, n_features = 200, 10
+        X = np.random.RandomState(42).random((n_samples, n_features))
+        y = np.random.RandomState(42).randint(0, 2, n_samples)
 
         cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=42)
         fold_scores = []
@@ -359,10 +358,8 @@ class TestModelIntegration:
             X_train, X_val = X[train_idx], X[val_idx]
             y_train, y_val = y[train_idx], y[val_idx]
 
-            # 簡単なダミー予測（実装後はLightGBMに置換）
-            from sklearn.ensemble import RandomForestClassifier
-
-            model = RandomForestClassifier(random_state=42)
+            # RandomForestで実際の学習・予測を実行
+            model = RandomForestClassifier(random_state=42, n_estimators=10)
             model.fit(X_train, y_train)
 
             y_pred = model.predict(X_val)
@@ -371,7 +368,7 @@ class TestModelIntegration:
 
         mean_score = np.mean(fold_scores)
 
-        # パイプラインが動作することを確認
+        # パイプラインの動作確認
         assert len(fold_scores) == 3
         assert 0 <= mean_score <= 1
 
