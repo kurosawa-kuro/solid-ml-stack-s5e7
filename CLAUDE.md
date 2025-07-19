@@ -57,10 +57,10 @@ Implemented Structure:
 - `winsorize_outliers()`: IQR-based outlier clipping for numeric stability
 - `create_bronze_tables()`: Creates bronze schema with preprocessing metadata
 
-**Advanced Missing Value Strategy** (Top-tier Methods):
+**Advanced Missing Value Strategy** (LightGBM-Optimized):
 1. **Missing Flags** (Stage_fear ~10%, Going_outside ~8%): Binary indicators for missing data
 2. **Cross-Feature Imputation**: Use high correlation patterns to predict missing values
-3. **Model-Specific Handling**: Keep NaN for tree models, impute for linear models
+3. **LightGBM Native Handling**: Preserve NaN for automatic tree-based processing
 4. **Fold-Safe Processing**: All statistics computed within CV folds only
 
 **Data Quality Pipeline** (Essential Steps):
@@ -77,7 +77,7 @@ Implemented Structure:
 **Key Features**:
 - **Competition-Grade Processing**: Implements top-tier Kaggle preprocessing patterns
 - **Missing Intelligence**: Leverages missing patterns as prediction signals
-- **Model Compatibility**: Dual preprocessing paths (tree vs linear models)
+- **LightGBM Optimized**: Preprocessing specifically designed for tree-based models
 - **Quality Assurance**: Comprehensive validation preventing data corruption
 - **Fast Prototyping**: Sub-second processing maintained despite advanced features
 
@@ -88,11 +88,11 @@ Implemented Structure:
 - `s5e7_interaction_features()`: **Top solution interaction patterns**
 - `s5e7_drain_adjusted_features()`: **Fatigue-adjusted activity scores** (top-tier invention)
 - `s5e7_communication_ratios()`: **Online vs Offline activity ratios**
-- `s5e7_binning_features()`: **CatBoost-optimized numeric discretization** (9-level)
+- `s5e7_binning_features()`: **LightGBM-optimized numeric discretization** (tree-friendly)
 - `polynomial_features()`: Degree-2 polynomial expansion
 - `scaling_features()`: Feature standardization
 
-**Top-Tier Feature Engineering Patterns**:
+**LightGBM-Optimized Feature Engineering Patterns**:
 1. **Interaction Features** (Winner Solution Based):
    - **Social Event Participation Rate**: `Social_event_attendance ÷ Going_outside` (per outing)
    - **Non-Social Outings**: `Going_outside - Social_event_attendance` (non-social purpose outings)
@@ -105,27 +105,27 @@ Implemented Structure:
    - Real activity assessment considering post-social fatigue
    - Activity attenuation modeling for introverted characteristics
 
-3. **CatBoost Optimization Features**:
-   - **Binning Processing**: Discretize numeric features into 9-level categories
-   - **Category Preservation**: Maintain Yes/No as string categories
-   - **Missing Categories**: Treat missing values as independent categories
+3. **LightGBM-Friendly Features**:
+   - **Missing Value Preservation**: Keep NaN for automatic handling
+   - **Categorical Binary Encoding**: Yes/No → 1/0 for optimal tree splits
+   - **Ratio and Difference Features**: Optimized for tree-based splitting
 
 4. **Statistical Composite Indicators**:
    - **Social Activity Ratio**: Integrated social activity indicator
    - **Communication Balance**: Online-Offline activity balance
    - **Introvert-Extrovert Spectrum**: Quantified personality spectrum
 
-**Advanced Implementation Features**:
-- **30+ engineered features** with top-tier pattern integration
-- **CatBoost-specific pipeline**: Leveraging automatic category processing
-- **Model-specific processing**: Tree vs Linear model optimization
+**LightGBM-Focused Implementation**:
+- **30+ engineered features** optimized for tree-based models
+- **Missing value strategy**: Leverage LightGBM's native NaN handling
+- **Tree-optimized processing**: Features designed for optimal splitting
 - **Feature importance guided**: Priority implementation of proven features
 - **Robust error handling**: Complete missing value and outlier handling
 
 **Performance Impact** (Expected Effects):
 - **Interaction Features**: +0.2-0.4% (proven in top solutions)
 - **Fatigue Adjustment**: +0.1-0.2% (improved introversion modeling)  
-- **CatBoost Optimization**: +0.3-0.5% (category processing optimization)
+- **LightGBM Optimization**: +0.3-0.5% (tree-based processing optimization)
 - **Composite Indicators**: +0.1-0.3% (behavioral pattern integration effects)
 
 #### Gold Layer (`src/data/gold.py`) - ML-Ready Data
@@ -260,9 +260,9 @@ pip install -e .[visualization]    # + plotting libraries
 
 **Strongly Recommended Steps (Performance Improvement)**:
 - [ ] Outlier winsorizing (IQR-based, 1%/99% percentile clipping)
-- [ ] Model-specific preprocessing pipelines (Tree: keep NaN, Linear: impute)
+- [ ] LightGBM-optimized preprocessing (preserve NaN, binary categorical encoding)
 - [ ] Cross-feature imputation (high correlation pattern-based missing value estimation)
-- [ ] Categorical encoding diversification (frequency/target statistics)
+- [ ] Tree-friendly feature generation (ratios, differences, interactions)
 
 **Experimental Steps (Fine-tuning Gains)**:
 - [ ] Ratio features (Time_spent_Alone/(Time_spent_Alone+Social_event_attendance))
@@ -275,7 +275,7 @@ pip install -e .[visualization]    # + plotting libraries
 - [ ] Non-social outings (Going_outside - Social_event_attendance)
 - [ ] Communication ratio (Post_frequency ÷ total activity)
 - [ ] Drain adjusted activity (fatigue-based activity adjustment)
-- [ ] CatBoost 9-level binning (numeric → categorical optimization)
+- [ ] LightGBM-friendly binning (tree-optimized numeric discretization)
 
 **Medium Priority (Statistical Composite Indicators)**:
 - [ ] Social activity ratio (integrated social activity indicator)
@@ -300,14 +300,14 @@ pip install -e .[visualization]    # + plotting libraries
 1. **Advanced Silver Layer** (Highest Priority +0.4-0.8% expected):
    - Top-tier interaction features (social event participation rate, communication_ratio)
    - Fatigue-adjusted activity scores (drain_adjusted_activity) - top-tier innovation
-   - CatBoost 9-level binning (numeric → categorical optimization)
+   - LightGBM-optimized binning (tree-friendly numeric discretization)
    - Statistical composite indicators (Social_activity_ratio, introvert_extrovert_spectrum)
 
 2. **Advanced Bronze Layer** (High Priority +0.3-0.5% expected):
    - Missing indicators for Stage_fear, Going_outside (top-tier proven)
    - Cross-feature imputation using high correlation patterns
    - Winsorizing outliers (IQR-based) for numeric stability
-   - Model-specific preprocessing pipelines (tree vs linear)
+   - LightGBM-optimized preprocessing (NaN preservation, binary encoding)
 
 3. **Hyperparameter Optimization**: Leverage existing Optuna integration (+0.2-0.4%)
 
