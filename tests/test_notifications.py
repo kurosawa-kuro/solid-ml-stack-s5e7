@@ -53,7 +53,7 @@ class TestWebhookNotifier:
         mock_post.return_value = mock_response
         
         notifier = WebhookNotifier('https://discord.com/api/webhooks/test')
-        config = {'learning_rate': 0.1, 'n_estimators': 100}
+        config = {'learning_rate': 0.1, 'num_leaves': 31, 'n_estimators': 100}
         result = notifier.notify_training_start('LightGBM', config)
         
         assert result is True

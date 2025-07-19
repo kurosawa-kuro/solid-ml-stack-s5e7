@@ -18,7 +18,7 @@ class TestLightGBMModel:
         """モデル初期化のテスト"""
         # 実装後にfrom src.models import LightGBMModelを追加
         
-        # デフォルトパラメータの確認
+        # デフォルトパラメータの確認（設計書仕様）
         default_params = {
             'objective': 'binary',
             'metric': 'binary_logloss',
@@ -112,7 +112,7 @@ class TestLightGBMModel:
             model_path = os.path.join(temp_dir, 'test_model.pkl')
             
             # ダミーモデル保存
-            dummy_model = {'type': 'LightGBM', 'params': {'learning_rate': 0.1}}
+            dummy_model = {'type': 'LightGBM', 'params': {'learning_rate': 0.1, 'num_leaves': 31}}
             joblib.dump(dummy_model, model_path)
             
             # 読み込み
@@ -120,6 +120,7 @@ class TestLightGBMModel:
             
             assert loaded_model['type'] == 'LightGBM'
             assert loaded_model['params']['learning_rate'] == 0.1
+            assert loaded_model['params']['num_leaves'] == 31
 
 
 class TestCrossValidationTrainer:
@@ -192,14 +193,14 @@ class TestCrossValidationTrainer:
     def test_training_time_measurement(self, mock_time):
         """学習時間計測のテスト"""
         # 時間の推移をモック
-        mock_time.side_effect = [1000.0, 1120.5]  # 120.5秒の学習時間
+        mock_time.side_effect = [1000.0, 1180.0]  # 180秒の学習時間
         
         start_time = mock_time()
         # 学習処理（モック）
         end_time = mock_time()
         
         training_time = end_time - start_time
-        assert training_time == 120.5
+        assert training_time == 180.0
 
     def test_cv_results_aggregation(self):
         """CV結果集計のテスト"""
@@ -212,7 +213,7 @@ class TestCrossValidationTrainer:
                 'feature': ['f1', 'f2', 'f3'],
                 'importance': [0.5, 0.3, 0.2]
             }),
-            'training_time': 120.5
+            'training_time': 180.0
         }
         
         # 必須フィールドの確認

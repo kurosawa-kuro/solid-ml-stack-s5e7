@@ -191,7 +191,7 @@ class TestModelTraining:
             'mean_score': 0.966,
             'std_score': 0.011,
             'oof_predictions': np.random.random(100),
-            'training_time': 120.5
+            'training_time': 240.0
         }
         mock_trainer.train_cv.return_value = mock_results
         
@@ -227,7 +227,7 @@ class TestModelTraining:
     def test_training_time_tracking(self, mock_time):
         """学習時間追跡のテスト"""
         # 時間進行のモック
-        mock_time.side_effect = [1000.0, 1180.5]  # 180.5秒の学習
+        mock_time.side_effect = [1000.0, 1240.0]  # 240秒の学習
         
         start_time = mock_time()
         # 学習処理（モック）
@@ -235,10 +235,10 @@ class TestModelTraining:
         
         training_time = end_time - start_time
         
-        assert training_time == 180.5
+        assert training_time == 240.0
         
-        # 時間範囲の妥当性確認
-        expected_max_time = 600  # 10分以内
+        # 時間範囲の妥当性確認（設計書仕様：5分以内）
+        expected_max_time = 300  # 5分以内
         assert training_time < expected_max_time
 
 
@@ -308,7 +308,7 @@ class TestResultOutput:
         notification_data = {
             'model_type': 'LightGBM Baseline',
             'cv_score': 0.975,
-            'training_time': 180.5,
+            'training_time': 240.0,
             'status': 'success'
         }
         
@@ -414,7 +414,7 @@ class TestIntegrationFlow:
             'mean_score': 0.9756,
             'std_score': 0.0018,
             'oof_predictions': np.random.random(100),
-            'training_time': 145.2
+            'training_time': 200.0
         }
         mock_trainer_instance.train_cv.return_value = mock_cv_results
         

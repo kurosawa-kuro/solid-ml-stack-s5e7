@@ -112,7 +112,7 @@ class TestCVScoring:
             'fold_scores': [0.97, 0.96, 0.98, 0.95, 0.97],
             'mean_score': 0.966,
             'std_score': 0.01,
-            'training_time': 120.5
+            'training_time': 180.0
         }
         
         # 必要なキーが存在することを確認
@@ -192,7 +192,7 @@ class TestCVLogging:
             'fold_scores': [0.97, 0.96, 0.98],
             'mean_score': 0.970,
             'std_score': 0.010,
-            'training_time': 120.5,
+            'training_time': 180.0,
             'memory_usage': '256MB'
         }
         
