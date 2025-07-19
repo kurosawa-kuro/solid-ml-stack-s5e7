@@ -25,7 +25,10 @@ dependencies = [
     "pytest>=7.0.0",
     "black>=22.0.0",
     "flake8>=5.0.0",
-    "mypy>=0.991"
+    "mypy>=0.991",
+    "duckdb>=0.9.0",
+    "category-encoders>=2.5.0",
+    "imbalanced-learn>=0.10.0"
 ]
 
 [project.optional-dependencies]

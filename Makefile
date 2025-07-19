@@ -31,6 +31,10 @@ personality-prediction:
 		--optimize \
 		--ensemble
 
+# Enhanced Silver layer training for Bronze medal
+train-silver-enhanced:
+	python scripts/train_silver_enhanced.py
+
 # Code quality - unified with pre-commit hooks
 lint:
 	black --check src/ tests/ scripts/
@@ -78,6 +82,7 @@ help:
 	@echo "Run:"
 	@echo "  make quick-test          - Quick single model test"
 	@echo "  make personality-prediction - Full workflow with optimization"
+	@echo "  make train-silver-enhanced - Enhanced Silver training for Bronze medal"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make lint                - Check code quality (black, flake8, mypy)"

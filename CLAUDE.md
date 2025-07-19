@@ -192,6 +192,96 @@ Introvert_extrovert_spectrum = quantified_personality_score(bronze_features)
 ✅ **Competition Proven**: Implements verified top-tier Kaggle techniques  
 ✅ **Performance Enhanced**: 30+ engineered features with measured impact expectations
 
+---
+
+## 1️⃣ Fold-Safe Target Encoding (Strategy 2)
+
+### Implementation Points
+
+| Element                         | Implementation Hints                                                                                                        |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **Cross-validation transform**  | `category_encoders.TargetEncoder` within **fold loop fit/transform**<br>→ Write `cross_val_transform` helper for reusability |
+| **Bayesian Smoothing**         | Test `smoothing` parameter at `0.3 – 0.5`<br>→ Too small ✕ (leakage), too large ✕ (diluted information)                  |
+| **High-information columns only** | Limit to `Stage_fear`, `Drained` etc. with 5-30 categories<br>→ Keep binary columns as one-hot                             |
+| **OOF & Test column naming**    | Example: `stage_fear_te`, `drained_te` → Use unified suffix `_te` to prevent downstream collisions                         |
+
+### Helper Function Example
+
+```python
+# silver/encoders/target.py
+from category_encoders import TargetEncoder
+from sklearn.model_selection import StratifiedKFold
+import numpy as np, pandas as pd
+
+def fold_safe_target_encode(df, y, cols, n_splits=5, seed=42, smoothing=0.3):
+    skf = StratifiedKFold(n_splits, shuffle=True, random_state=seed)
+    oof = np.zeros((len(df), len(cols)))
+    for train_idx, valid_idx in skf.split(df, y):
+        te = TargetEncoder(cols=cols, smoothing=smoothing)
+        te.fit(df.iloc[train_idx], y.iloc[train_idx])
+        oof[valid_idx, :] = te.transform(df.iloc[valid_idx])[cols].values
+    df_te = pd.DataFrame(oof, columns=[f"{c}_te" for c in cols], index=df.index)
+    return pd.concat([df, df_te], axis=1)
+```
+
+*Testing*:
+`assert_no_leakage(train_df, valid_df, key='id')` → Check that TE columns don't leak id information.
+
+---
+
+## 2️⃣ Advanced Statistical & Imputation Features (Strategy 3)
+
+### 2-1. KNN Imputation
+
+```python
+from sklearn.impute import KNNImputer
+num_cols = df.select_dtypes(include='number').columns
+imputer = KNNImputer(n_neighbors=5, weights='distance')
+df[num_cols] = imputer.fit_transform(df[num_cols])
+```
+
+*Tips*
+
+* **Preprocessing Cache**: Save to `processed/train_knn.pkl` for reuse.
+* KNN is expensive, so include `n_neighbors=3/5` as Optuna parameter.
+
+### 2-2. Row Statistics & Z-score
+
+```python
+stats_cols = ['feature1','feature2', ...]
+df['row_mean']  = df[stats_cols].mean(axis=1)
+df['row_std']   = df[stats_cols].std(axis=1)
+df['row_skew']  = df[stats_cols].skew(axis=1)
+df['row_kurt']  = df[stats_cols].kurtosis(axis=1)
+
+# Z-score & percentile
+for c in stats_cols:
+    df[f'{c}_z']  = (df[c] - df[c].mean()) / df[c].std()
+    df[f'{c}_pct'] = df[c].rank(pct=True)
+```
+
+*Note*
+
+* Standardization uses **train statistics only** → Apply same mean/variance to test.
+* To prevent feature explosion, limit `*_z` to top 10 high-information columns.
+
+---
+
+## 3️⃣ Silver Layer Integration Order
+
+```mermaid
+graph LR
+  Bronze -->|clean| Silver1[Impute (KNN)]
+  Silver1 -->|encode| Silver2[Target Encoding]
+  Silver2 -->|feat| Silver3[Row Stats / Zscore]
+  Silver3 --> Gold[Model Train (LightGBM)]
+```
+
+1. **KNN Imputation** to fill missing values
+2. **Target Encoding** as *new columns* addition
+3. **Statistical Features** further enhancement
+4. Existing Gold Layer (LightGBM model) training → **Confirm CV improvement**
+
 ## 🥇 Gold Layer - ML-Ready Data & Model Interface
 
 ### Single Source Dependency Chain
