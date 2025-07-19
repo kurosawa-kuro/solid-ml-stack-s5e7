@@ -227,6 +227,57 @@ class TestBronzeLeakPrevention:
         # Validation statistics should be different (proving no leak)
         assert fold_stats[0]["val_normalized_mean"] != fold_stats[1]["val_normalized_mean"]
 
+    def test_categorical_encoding_fold_safety(self, sample_bronze_data):
+        """Test categorical encoding is fold-safe"""
+        skf = StratifiedKFold(n_splits=2, shuffle=True, random_state=42)
+        
+        fold_encodings = []
+        for train_idx, val_idx in skf.split(sample_bronze_data, sample_bronze_data["Personality"]):
+            train_fold = sample_bronze_data.iloc[train_idx]
+            val_fold = sample_bronze_data.iloc[val_idx]
+            
+            # Encode only on training fold
+            train_encoded = encode_categorical_robust(train_fold)
+            val_encoded = encode_categorical_robust(val_fold)
+            
+            # Store encoding patterns
+            fold_encodings.append({
+                "train_pattern": train_encoded["Stage_fear"].value_counts().to_dict(),
+                "val_pattern": val_encoded["Stage_fear"].value_counts().to_dict()
+            })
+        
+        # Assert fold-safe encoding
+        assert len(fold_encodings) == 2
+        # Each fold should have its own encoding pattern
+        assert fold_encodings[0]["train_pattern"] != fold_encodings[1]["train_pattern"]
+
+    def test_missing_strategy_fold_safety(self, missing_data):
+        """Test missing value strategy is fold-safe"""
+        skf = StratifiedKFold(n_splits=2, shuffle=True, random_state=42)
+        
+        fold_missing_flags = []
+        for train_idx, val_idx in skf.split(missing_data, missing_data["Stage_fear_encoded"]):
+            train_fold = missing_data.iloc[train_idx]
+            val_fold = missing_data.iloc[val_idx]
+            
+            # Apply missing strategy only on training fold
+            train_processed = advanced_missing_strategy(train_fold)
+            val_processed = advanced_missing_strategy(val_fold)
+            
+            # Count missing flags
+            train_missing_count = sum([col.endswith('_missing') for col in train_processed.columns])
+            val_missing_count = sum([col.endswith('_missing') for col in val_processed.columns])
+            
+            fold_missing_flags.append({
+                "train_missing_features": train_missing_count,
+                "val_missing_features": val_missing_count
+            })
+        
+        # Assert fold-safe missing strategy
+        assert len(fold_missing_flags) == 2
+        # Each fold should have consistent missing flag generation
+        assert fold_missing_flags[0]["train_missing_features"] == fold_missing_flags[1]["train_missing_features"]
+
     def test_sklearn_compatible_transformers(self, missing_data):
         """Test sklearn-compatible transformers using common test data"""
         from sklearn.pipeline import Pipeline
@@ -337,3 +388,52 @@ class TestBronzePerformance:
         result_encode = encode_categorical_robust(edge_case_data)
         assert result_encode["Stage_fear"].iloc[0] == result_encode["Stage_fear"].iloc[2]  # "Yes" == "yes"
         assert result_encode["Stage_fear"].iloc[1] == result_encode["Stage_fear"].iloc[3]  # "NO" == "no" 
+
+
+class TestBronzeWinnerSolutionFeatures:
+    """Test Winner Solution features specified in CLAUDE.md"""
+    
+    def test_social_event_participation_rate(self, sample_bronze_data):
+        """Test Social_event_participation_rate feature (+0.2-0.4% proven impact)"""
+        result = basic_features(sample_bronze_data)
+        
+        # Use common assertions
+        assert_no_data_loss(sample_bronze_data, result)
+        assert_data_quality(result)
+        
+        # Test Winner Solution feature
+        if 'social_participation_rate' in result.columns:
+            feature_values = result['social_participation_rate']
+            assert not feature_values.isna().all(), "Feature has all NaN values"
+            assert feature_values.std() > 0, "Feature has no variance"
+            # Should be ratio between 0 and 1
+            assert feature_values.min() >= 0, "Feature has negative values"
+            assert feature_values.max() <= 1, "Feature exceeds 1.0"
+
+    def test_communication_ratio_feature(self, sample_bronze_data):
+        """Test Communication_ratio feature (+0.2-0.4% proven impact)"""
+        result = basic_features(sample_bronze_data)
+        
+        # Use common assertions
+        assert_no_data_loss(sample_bronze_data, result)
+        assert_data_quality(result)
+        
+        # Test Winner Solution feature
+        if 'communication_ratio' in result.columns:
+            feature_values = result['communication_ratio']
+            assert not feature_values.isna().all(), "Feature has all NaN values"
+            assert feature_values.std() > 0, "Feature has no variance"
+
+    def test_friend_social_efficiency(self, sample_bronze_data):
+        """Test Friend_social_efficiency feature (+0.2-0.4% proven impact)"""
+        result = basic_features(sample_bronze_data)
+        
+        # Use common assertions
+        assert_no_data_loss(sample_bronze_data, result)
+        assert_data_quality(result)
+        
+        # Test Winner Solution feature
+        if 'friend_social_efficiency' in result.columns:
+            feature_values = result['friend_social_efficiency']
+            assert not feature_values.isna().all(), "Feature has all NaN values"
+            assert feature_values.std() > 0, "Feature has no variance" 

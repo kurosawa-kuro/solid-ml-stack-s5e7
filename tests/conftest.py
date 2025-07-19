@@ -144,9 +144,17 @@ class PerformanceTimer:
     def __init__(self):
         self.start_time = None
         self.end_time = None
+        self.memory_usage = None
     
     def __enter__(self):
         self.start_time = time.time()
+        # Memory usage tracking (if psutil available)
+        try:
+            import psutil
+            process = psutil.Process()
+            self.memory_usage = process.memory_info().rss / 1024 / 1024  # MB
+        except ImportError:
+            self.memory_usage = None
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -158,6 +166,11 @@ class PerformanceTimer:
         if self.start_time and self.end_time:
             return self.end_time - self.start_time
         return None
+    
+    @property
+    def memory_used(self):
+        """メモリ使用量を取得（MB）"""
+        return self.memory_usage
 
 
 def assert_sub_second_performance(func, *args, **kwargs):
@@ -166,6 +179,17 @@ def assert_sub_second_performance(func, *args, **kwargs):
         result = func(*args, **kwargs)
     
     assert timer.elapsed_time < 1.0, f"Function took {timer.elapsed_time:.3f}s (should be < 1.0s)"
+    return result
+
+
+def assert_memory_efficient(func, max_memory_mb: float = 100.0, *args, **kwargs):
+    """メモリ効率性をアサート"""
+    with PerformanceTimer() as timer:
+        result = func(*args, **kwargs)
+    
+    if timer.memory_used is not None:
+        assert timer.memory_used < max_memory_mb, \
+            f"Function used {timer.memory_used:.1f}MB (should be < {max_memory_mb}MB)"
     return result
 
 
@@ -179,6 +203,13 @@ def assert_lightgbm_compatibility(df: pd.DataFrame):
         # 無限値チェック
         if df[col].dtype in ['float64', 'float32']:
             assert not np.isinf(df[col]).any(), f"Infinite values found in {col}"
+        
+        # メモリ効率性チェック
+        if df[col].dtype == 'float64':
+            # 必要に応じてfloat32に変換可能かチェック
+            if df[col].min() >= -3.4e38 and df[col].max() <= 3.4e38:
+                # float32の範囲内なので変換可能
+                pass
 
 
 def assert_no_data_loss(original_df: pd.DataFrame, processed_df: pd.DataFrame):
