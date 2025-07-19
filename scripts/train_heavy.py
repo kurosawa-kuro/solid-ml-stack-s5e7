@@ -88,9 +88,9 @@ def load_and_prepare_enhanced_data_heavy() -> tuple[np.ndarray, np.ndarray, np.n
         feature_cols = [col for col in train_df.columns if col not in id_cols + target_cols]
 
         # Extract features and target
-        X_train = train_df[feature_cols].values
-        y_train = train_df["Personality_encoded"].values
-        X_test = test_df[feature_cols].values
+        X_train = np.asarray(train_df[feature_cols].values)
+        y_train = np.asarray(train_df["Personality_encoded"].values)
+        X_test = np.asarray(test_df[feature_cols].values)
 
         logger.info(f"Heavy Features: {len(feature_cols)}, Samples: {len(X_train)}")
 

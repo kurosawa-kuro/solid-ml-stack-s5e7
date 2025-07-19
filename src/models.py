@@ -107,7 +107,7 @@ class LightGBMModel:
         # Store feature names
         if feature_names is not None:
             self.feature_names = feature_names
-        elif hasattr(X, "columns"):
+        elif hasattr(X, "columns") and not isinstance(X, np.ndarray):
             self.feature_names = list(X.columns)
         else:
             self.feature_names = [f"feature_{i}" for i in range(X.shape[1])]
@@ -136,7 +136,7 @@ class LightGBMModel:
         if not self.is_fitted or self.model is None:
             raise ValueError("Model must be fitted before making predictions")
 
-        return self.model.predict(X)
+        return np.asarray(self.model.predict(X))
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """
@@ -151,7 +151,7 @@ class LightGBMModel:
         if not self.is_fitted or self.model is None:
             raise ValueError("Model must be fitted before making predictions")
 
-        return self.model.predict_proba(X)
+        return np.asarray(self.model.predict_proba(X))
 
     def get_feature_importance(self, importance_type: str = "gain") -> pd.DataFrame:
         """
@@ -366,7 +366,7 @@ class CrossValidationTrainer:
             Aggregated feature importance
         """
         if not importance_list:
-            return None
+            return pd.DataFrame()
 
         # Combine all importance dataframes
         all_importance = pd.concat(importance_list, ignore_index=True)

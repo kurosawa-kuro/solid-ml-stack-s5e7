@@ -46,7 +46,7 @@ class TestCVStrategyFull:
         X = np.random.random((30, 5))
         y = np.array([0, 1] * 15)
 
-        splits = list(strategy.get_splits(X, y))
+        splits = list(strategy.split(X, y))
         assert len(splits) == 3
 
         # Check that all indices are used
@@ -132,7 +132,7 @@ class TestCVLoggerFull:
 
             filepath = logger.save_json_log(log_entry, "test_log.json")
 
-            assert filepath.exists()
+            assert Path(filepath).exists()
 
             # Load and verify
             with open(filepath, "r") as f:
@@ -154,7 +154,7 @@ class TestCVLoggerFull:
 
             filepath = logger.save_csv_log(df, "test_results.csv")
 
-            assert filepath.exists()
+            assert Path(filepath).exists()
 
             # Load and verify
             loaded_df = pd.read_csv(filepath)
