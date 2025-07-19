@@ -57,13 +57,13 @@ Implemented Structure:
 - `winsorize_outliers()`: IQR-based outlier clipping for numeric stability
 - `create_bronze_tables()`: Creates bronze schema with preprocessing metadata
 
-**Advanced Missing Value Strategy** (上位勢手法):
+**Advanced Missing Value Strategy** (Top-tier Methods):
 1. **Missing Flags** (Stage_fear ~10%, Going_outside ~8%): Binary indicators for missing data
-2. **Cross-Feature Imputation**: Use high correlation (多重共線性) to predict missing values
+2. **Cross-Feature Imputation**: Use high correlation patterns to predict missing values
 3. **Model-Specific Handling**: Keep NaN for tree models, impute for linear models
 4. **Fold-Safe Processing**: All statistics computed within CV folds only
 
-**Data Quality Pipeline** (必須ステップ):
+**Data Quality Pipeline** (Essential Steps):
 - **Type Validation**: Explicit dtype setting (int/float/bool/category)
 - **Range Guards**: Time_spent_Alone ≤ 24hrs, non-negative behavioral metrics  
 - **Missing Pattern Analysis**: Identify systematic vs random missing
@@ -82,51 +82,51 @@ Implemented Structure:
 - **Fast Prototyping**: Sub-second processing maintained despite advanced features
 
 #### Silver Layer (`src/data/silver.py`) - Advanced Feature Engineering
-**Purpose**: Competition-grade feature engineering with **上位勢実証済み手法**
+**Purpose**: Competition-grade feature engineering with **proven top-tier methods**
 **Core Functions**:
 - `advanced_features()`: 15+ statistical and domain features
-- `s5e7_interaction_features()`: **上位解法の交互作用パターン**
-- `s5e7_drain_adjusted_features()`: **疲労感調整活動度** (上位勢発明)
-- `s5e7_communication_ratios()`: **オンライン vs オフライン活動比率**
-- `s5e7_binning_features()`: **CatBoost向け数値離散化** (9段階)
+- `s5e7_interaction_features()`: **Top solution interaction patterns**
+- `s5e7_drain_adjusted_features()`: **Fatigue-adjusted activity scores** (top-tier invention)
+- `s5e7_communication_ratios()`: **Online vs Offline activity ratios**
+- `s5e7_binning_features()`: **CatBoost-optimized numeric discretization** (9-level)
 - `polynomial_features()`: Degree-2 polynomial expansion
 - `scaling_features()`: Feature standardization
 
-**上位勢特徴量エンジニアリングパターン**:
-1. **交互作用特徴量** (優勝解法ベース):
-   - **社交イベント参加率**: `Social_event_attendance ÷ Going_outside` (外出1回あたり)
-   - **非社交的外出**: `Going_outside - Social_event_attendance` (社交目的でない外出)
-   - **communication_ratio**: `Post_frequency ÷ (Social_event_attendance + Going_outside)` (オンライン vs オフライン)
-   - **activity_ratio**: 総合活動指数からの社交傾向分析
-   - **友人社交効率**: `Social_event_attendance ÷ Friends_circle_size`
+**Top-Tier Feature Engineering Patterns**:
+1. **Interaction Features** (Winner Solution Based):
+   - **Social Event Participation Rate**: `Social_event_attendance ÷ Going_outside` (per outing)
+   - **Non-Social Outings**: `Going_outside - Social_event_attendance` (non-social purpose outings)
+   - **Communication Ratio**: `Post_frequency ÷ (Social_event_attendance + Going_outside)` (online vs offline)
+   - **Activity Ratio**: Comprehensive activity index for social tendency analysis
+   - **Friend-Social Efficiency**: `Social_event_attendance ÷ Friends_circle_size`
 
-2. **疲労感調整特徴量** (上位勢発明):
-   - **drain_adjusted_activity**: `activity_ratio × (1 - Drained_after_socializing)`
-   - 社交後疲労を考慮した実質活動度評価
-   - 内向的特性による活動量減衰モデリング
+2. **Fatigue-Adjusted Features** (Top-Tier Innovation):
+   - **Drain Adjusted Activity**: `activity_ratio × (1 - Drained_after_socializing)`
+   - Real activity assessment considering post-social fatigue
+   - Activity attenuation modeling for introverted characteristics
 
-3. **CatBoost最適化特徴量**:
-   - **ビニング処理**: 数値特徴を9段階離散化してカテゴリ化
-   - **カテゴリ保持**: Yes/No を文字列カテゴリとして維持
-   - **欠損カテゴリ**: 欠損値を独立カテゴリとして扱う
+3. **CatBoost Optimization Features**:
+   - **Binning Processing**: Discretize numeric features into 9-level categories
+   - **Category Preservation**: Maintain Yes/No as string categories
+   - **Missing Categories**: Treat missing values as independent categories
 
-4. **統計的複合指標**:
-   - **Social_activity_ratio**: 社交活動の統合指標
-   - **communication_balance**: オンライン・オフライン活動バランス
-   - **introvert_extrovert_spectrum**: 内向外向スペクトラム定量化
+4. **Statistical Composite Indicators**:
+   - **Social Activity Ratio**: Integrated social activity indicator
+   - **Communication Balance**: Online-Offline activity balance
+   - **Introvert-Extrovert Spectrum**: Quantified personality spectrum
 
-**実装済み高度機能**:
-- **30+ engineered features** with 上位勢パターン統合
-- **CatBoost専用パイプライン**: カテゴリ自動処理活用
-- **Model-specific processing**: Tree vs Linear model 最適化
-- **Feature importance guided**: 効果実証済み特徴量優先実装
-- **Robust error handling**: 欠損・異常値への対応完備
+**Advanced Implementation Features**:
+- **30+ engineered features** with top-tier pattern integration
+- **CatBoost-specific pipeline**: Leveraging automatic category processing
+- **Model-specific processing**: Tree vs Linear model optimization
+- **Feature importance guided**: Priority implementation of proven features
+- **Robust error handling**: Complete missing value and outlier handling
 
-**Performance Impact** (期待効果):
-- **交互作用特徴量**: +0.2-0.4% (上位解法で実証)
-- **疲労感調整**: +0.1-0.2% (内向性モデリング精度向上)  
-- **CatBoost最適化**: +0.3-0.5% (カテゴリ処理最適化)
-- **複合指標**: +0.1-0.3% (行動パターン統合効果)
+**Performance Impact** (Expected Effects):
+- **Interaction Features**: +0.2-0.4% (proven in top solutions)
+- **Fatigue Adjustment**: +0.1-0.2% (improved introversion modeling)  
+- **CatBoost Optimization**: +0.3-0.5% (category processing optimization)
+- **Composite Indicators**: +0.1-0.3% (behavioral pattern integration effects)
 
 #### Gold Layer (`src/data/gold.py`) - ML-Ready Data
 **Purpose**: Production-ready ML data preparation
@@ -249,44 +249,44 @@ pip install -e .[visualization]    # + plotting libraries
 4. **Test Comprehensively**: 73% coverage with integration tests (implemented)
 5. **Scale Thoughtfully**: Medallion architecture supports controlled expansion
 
-### Bronze Layer Implementation Checklist (上位勢パターン)
-**必須ステップ (実装優先)**:
-- [ ] データ読込時dtype明示設定 (int/float/bool/category)
-- [ ] 値域バリデーション (Time_spent_Alone ≤ 24hrs, 非負チェック)
-- [ ] Yes/No正規化辞書 (大文字小文字統一 → {0,1})
-- [ ] 欠損フラグ生成 (Stage_fear, Going_outside, Drained_after_socializing)
-- [ ] Fold内統計量計算 (CV内でimputation値・エンコーディング学習)
-- [ ] Stratified K-Fold設定 (クラス比率維持)
+### Bronze Layer Implementation Checklist (Top-Tier Patterns)
+**Essential Steps (Implementation Priority)**:
+- [ ] Explicit dtype setting on data load (int/float/bool/category)
+- [ ] Value range validation (Time_spent_Alone ≤ 24hrs, non-negative checks)
+- [ ] Yes/No normalization dictionary (case unification → {0,1})
+- [ ] Missing flag generation (Stage_fear, Going_outside, Drained_after_socializing)
+- [ ] Within-fold statistics calculation (CV-safe imputation values & encoding)
+- [ ] Stratified K-Fold setup (maintain class ratio)
 
-**強推奨ステップ (性能向上)**:
-- [ ] 外れ値Winsorizing (IQR基準, 1%/99%分位数クリップ)
-- [ ] モデル別前処理パイプライン (Tree:NaN保持, Linear:補完)
-- [ ] 交差特徴補完 (高相関利用した欠損値推定)
-- [ ] カテゴリエンコーディング多様化 (頻度/ターゲット統計)
+**Strongly Recommended Steps (Performance Improvement)**:
+- [ ] Outlier winsorizing (IQR-based, 1%/99% percentile clipping)
+- [ ] Model-specific preprocessing pipelines (Tree: keep NaN, Linear: impute)
+- [ ] Cross-feature imputation (high correlation pattern-based missing value estimation)
+- [ ] Categorical encoding diversification (frequency/target statistics)
 
-**実験ステップ (微差稼ぎ)**:
-- [ ] 比率特徴 (Time_spent_Alone/(Time_spent_Alone+Social_event_attendance))
-- [ ] RankGauss変換 (歪度大きい特徴の正規化)
-- [ ] ターゲットエンコーディング+ノイズ (高カテゴリ時)
+**Experimental Steps (Fine-tuning Gains)**:
+- [ ] Ratio features (Time_spent_Alone/(Time_spent_Alone+Social_event_attendance))
+- [ ] RankGauss transformation (normalization for highly skewed features)
+- [ ] Target encoding + noise (for high cardinality categories)
 
-### Silver Layer Advanced Implementation Checklist (上位勢パターン)
-**高優先度 (優勝解法ベース)**:
-- [ ] 社交イベント参加率 (Social_event_attendance ÷ Going_outside) 
-- [ ] 非社交的外出 (Going_outside - Social_event_attendance)
-- [ ] communication_ratio (Post_frequency ÷ 活動総量)
-- [ ] drain_adjusted_activity (疲労感による活動度調整)
-- [ ] CatBoost向け9段階ビニング (数値→カテゴリ化)
+### Silver Layer Advanced Implementation Checklist (Top-Tier Patterns)
+**High Priority (Winner Solution Based)**:
+- [ ] Social event participation rate (Social_event_attendance ÷ Going_outside) 
+- [ ] Non-social outings (Going_outside - Social_event_attendance)
+- [ ] Communication ratio (Post_frequency ÷ total activity)
+- [ ] Drain adjusted activity (fatigue-based activity adjustment)
+- [ ] CatBoost 9-level binning (numeric → categorical optimization)
 
-**中優先度 (統計的複合指標)**:
-- [ ] Social_activity_ratio (社交活動統合指標)
-- [ ] 友人社交効率 (Social_event_attendance ÷ Friends_circle_size)
-- [ ] introvert_extrovert_spectrum (内向外向定量化)
-- [ ] communication_balance (オンライン・オフライン バランス)
+**Medium Priority (Statistical Composite Indicators)**:
+- [ ] Social activity ratio (integrated social activity indicator)
+- [ ] Friend-social efficiency (Social_event_attendance ÷ Friends_circle_size)
+- [ ] Introvert-extrovert spectrum (personality quantification)
+- [ ] Communication balance (online-offline activity balance)
 
-**実験ステップ (微調整)**:
-- [ ] 三項交互作用 (最重要特徴量の組み合わせ)
-- [ ] 活動パターン分類 (social/non-social/online)
-- [ ] 疲労感重み付け (Drained_after_socializing 活用度強化)
+**Experimental Steps (Fine-tuning)**:
+- [ ] Triple interactions (key feature combinations)
+- [ ] Activity pattern classification (social/non-social/online)
+- [ ] Fatigue weighting enhancement (stronger Drained_after_socializing utilization)
 
 ## 【SUCCESS CRITERIA】
 - **Bronze Medal**: 0.976518+ accuracy (+0.8% from current 0.9684)
@@ -298,20 +298,20 @@ pip install -e .[visualization]    # + plotting libraries
 ## 【BRONZE MEDAL ROADMAP】
 ### Immediate Opportunities (1-2 weeks)
 1. **Advanced Silver Layer** (Highest Priority +0.4-0.8% expected):
-   - 上位勢交互作用特徴量 (社交イベント参加率, communication_ratio)
-   - 疲労感調整活動度 (drain_adjusted_activity) - 上位勢発明手法
-   - CatBoost向け9段階ビニング (数値→カテゴリ最適化)
-   - 統計的複合指標 (Social_activity_ratio, introvert_extrovert_spectrum)
+   - Top-tier interaction features (social event participation rate, communication_ratio)
+   - Fatigue-adjusted activity scores (drain_adjusted_activity) - top-tier innovation
+   - CatBoost 9-level binning (numeric → categorical optimization)
+   - Statistical composite indicators (Social_activity_ratio, introvert_extrovert_spectrum)
 
 2. **Advanced Bronze Layer** (High Priority +0.3-0.5% expected):
-   - Missing indicators for Stage_fear, Going_outside (上位勢実証済み)
+   - Missing indicators for Stage_fear, Going_outside (top-tier proven)
    - Cross-feature imputation using high correlation patterns
    - Winsorizing outliers (IQR-based) for numeric stability
    - Model-specific preprocessing pipelines (tree vs linear)
 
 3. **Hyperparameter Optimization**: Leverage existing Optuna integration (+0.2-0.4%)
 
-3. **Enhanced Data Quality** (Medium Priority +0.1-0.3%):
+4. **Enhanced Data Quality** (Medium Priority +0.1-0.3%):
    - Dtype validation with range guards (Time_spent_Alone ≤ 24hrs)
    - Categorical standardization (case-insensitive Yes/No mapping)
    - Missing pattern analysis for systematic vs random detection
