@@ -7,8 +7,7 @@ from typing import Tuple, List, Dict, Any, Optional
 import warnings
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import KBinsDiscretizer, PowerTransformer
-from sklearn.cluster import KMeans
+from sklearn.preprocessing import PowerTransformer
 from sklearn.impute import KNNImputer
 from sklearn.base import BaseEstimator, TransformerMixin
 from category_encoders import TargetEncoder
@@ -18,104 +17,42 @@ from imblearn.over_sampling import SMOTE
 warnings.filterwarnings('ignore')
 
 
-class CatBoostFeatureEngineer(BaseEstimator, TransformerMixin):
-    """Strategy 1: CatBoost-specific feature engineering (+0.3-0.5% expected)"""
+class LightGBMFeatureEngineer(BaseEstimator, TransformerMixin):
+    """Strategy 1: LightGBM-optimized feature engineering (+0.3-0.5% expected)"""
     
-    def __init__(self, n_bins: int = 9, clustering_k: List[int] = [3, 5, 7]):
-        self.n_bins = n_bins
-        self.clustering_k = clustering_k
-        self.binners = {}
-        self.clusterers = {}
+    def __init__(self, use_power_transforms: bool = True):
+        self.use_power_transforms = use_power_transforms
         self.power_transformers = {}
         self.numeric_features = None
         
     def fit(self, X, y=None):
-        """Fit binning, clustering, and power transformations"""
+        """Fit power transformations for skewed features"""
         # Identify numeric features
         self.numeric_features = X.select_dtypes(include=[np.number]).columns.tolist()
         if 'id' in self.numeric_features:
             self.numeric_features.remove('id')
-            
-        # 1. Fit binners for numeric features
-        for col in self.numeric_features:
-            if X[col].nunique() > self.n_bins:
-                self.binners[col] = KBinsDiscretizer(
-                    n_bins=self.n_bins, 
-                    encode='ordinal', 
-                    strategy='quantile'
-                )
-                # Handle NaN by filling with median before binning
-                col_data = X[[col]].fillna(X[col].median())
-                self.binners[col].fit(col_data)
         
-        # 2. Fit clusterers on feature subsets
-        feature_subsets = {
-            'social': ['Social_event_attendance', 'Going_outside', 'Friends_circle_size'],
-            'activity': ['Time_spent_Alone', 'Social_event_attendance', 'Post_frequency'],
-            'all': self.numeric_features[:5]  # Top 5 numeric features
-        }
-        
-        for subset_name, features in feature_subsets.items():
-            available_features = [f for f in features if f in X.columns]
-            if len(available_features) >= 2:
-                for k in self.clustering_k:
-                    clusterer_name = f'{subset_name}_k{k}'
-                    self.clusterers[clusterer_name] = KMeans(
-                        n_clusters=k, 
-                        random_state=42,
-                        n_init=10
-                    )
-                    # Fit on non-null data
-                    cluster_data = X[available_features].fillna(X[available_features].median())
-                    self.clusterers[clusterer_name].fit(cluster_data)
-        
-        # 3. Fit power transformers for skewed features
-        for col in self.numeric_features:
-            if col in X.columns:
-                col_data = X[col].dropna()
-                if len(col_data) > 0:
-                    skewness = col_data.skew()
-                    if abs(skewness) > 1.0:  # Highly skewed
-                        self.power_transformers[col] = PowerTransformer(
-                            method='yeo-johnson',
-                            standardize=False
-                        )
-                        self.power_transformers[col].fit(col_data.values.reshape(-1, 1))
+        # Fit power transformers for skewed features (LightGBM friendly)
+        if self.use_power_transforms:
+            for col in self.numeric_features:
+                if col in X.columns:
+                    col_data = X[col].dropna()
+                    if len(col_data) > 0:
+                        skewness = col_data.skew()
+                        if abs(skewness) > 0.5:  # Moderately skewed
+                            self.power_transformers[col] = PowerTransformer(
+                                method='yeo-johnson',
+                                standardize=False
+                            )
+                            self.power_transformers[col].fit(col_data.values.reshape(-1, 1))
         
         return self
     
     def transform(self, X):
-        """Apply binning, clustering, and power transformations"""
+        """Apply power transformations for LightGBM"""
         X_transformed = X.copy()
         
-        # 1. Apply binning (creates categorical features for CatBoost)
-        for col, binner in self.binners.items():
-            if col in X_transformed.columns:
-                col_data = X_transformed[[col]].fillna(X_transformed[col].median())
-                X_transformed[f'{col}_binned'] = binner.transform(col_data).astype(int)
-                # Convert to string categories for CatBoost
-                X_transformed[f'{col}_binned'] = 'bin_' + X_transformed[f'{col}_binned'].astype(str)
-        
-        # 2. Apply clustering
-        feature_subsets = {
-            'social': ['Social_event_attendance', 'Going_outside', 'Friends_circle_size'],
-            'activity': ['Time_spent_Alone', 'Social_event_attendance', 'Post_frequency'],
-            'all': self.numeric_features[:5]
-        }
-        
-        for subset_name, features in feature_subsets.items():
-            available_features = [f for f in features if f in X_transformed.columns]
-            if len(available_features) >= 2:
-                for k in self.clustering_k:
-                    clusterer_name = f'{subset_name}_k{k}'
-                    if clusterer_name in self.clusterers:
-                        cluster_data = X_transformed[available_features].fillna(
-                            X_transformed[available_features].median()
-                        )
-                        clusters = self.clusterers[clusterer_name].predict(cluster_data)
-                        X_transformed[f'cluster_{clusterer_name}'] = 'cluster_' + clusters.astype(str)
-        
-        # 3. Apply power transformations
+        # Apply power transformations
         for col, transformer in self.power_transformers.items():
             if col in X_transformed.columns:
                 # Handle NaN
@@ -311,14 +248,14 @@ class EnhancedSilverPreprocessor(BaseEstimator, TransformerMixin):
         self.target_cols = target_cols
         
         # Initialize sub-transformers
-        self.catboost_engineer = CatBoostFeatureEngineer() if use_catboost_features else None
+        self.lgbm_engineer = LightGBMFeatureEngineer() if use_catboost_features else None
         self.target_encoder = CVSafeTargetEncoder(cols=target_cols) if use_target_encoding else None
         self.statistical_engineer = AdvancedStatisticalFeatures() if use_statistical_features else None
         
     def fit(self, X, y=None):
         """Fit all sub-transformers"""
-        if self.catboost_engineer:
-            self.catboost_engineer.fit(X, y)
+        if self.lgbm_engineer:
+            self.lgbm_engineer.fit(X, y)
         
         if self.target_encoder and y is not None:
             self.target_encoder.fit(X, y)
@@ -333,8 +270,8 @@ class EnhancedSilverPreprocessor(BaseEstimator, TransformerMixin):
         X_transformed = X.copy()
         
         # Apply transformations in order of impact
-        if self.catboost_engineer:
-            X_transformed = self.catboost_engineer.transform(X_transformed)
+        if self.lgbm_engineer:
+            X_transformed = self.lgbm_engineer.transform(X_transformed)
         
         if self.target_encoder:
             X_transformed = self.target_encoder.transform(X_transformed)
@@ -351,8 +288,8 @@ class EnhancedSilverPreprocessor(BaseEstimator, TransformerMixin):
         # Apply transformations
         X_transformed = X.copy()
         
-        if self.catboost_engineer:
-            X_transformed = self.catboost_engineer.transform(X_transformed)
+        if self.lgbm_engineer:
+            X_transformed = self.lgbm_engineer.transform(X_transformed)
         
         if self.target_encoder and y is not None:
             X_transformed = self.target_encoder.transform(X_transformed)
