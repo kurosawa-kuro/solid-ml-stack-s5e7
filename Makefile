@@ -31,17 +31,20 @@ personality-prediction:
 		--optimize \
 		--ensemble
 
-# Code quality
+# Code quality - unified with pre-commit hooks
 lint:
-	black --check src/
-	flake8 src/
-	mypy src/
+	black --check src/ tests/ scripts/
+	flake8 src/ tests/ scripts/
+	mypy src/ tests/ scripts/
 
+# Code formatting - apply black to all files
 format:
-	black src/
+	black src/ tests/ scripts/
 
+# Auto-fix lint issues
 lint-fix: format
 	@echo "Code formatted with black"
+	@echo "Note: Some lint issues may require manual fixes"
 
 # Basic test
 test:

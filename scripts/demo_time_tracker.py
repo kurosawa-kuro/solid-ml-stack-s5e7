@@ -48,11 +48,11 @@ def demo_ml_workflow():
     print(f"Result: {result}")
 
     # Show all statistics
-    print("\n📈 Workflow Performance Summary:")
+    print("\n📈 Workflow Performance Summary: ")
     tracker.print_all_stats()
 
     # Demonstrate prediction for next run
-    print("\n🔮 Next Run Predictions:")
+    print("\n🔮 Next Run Predictions: ")
     for workflow in tracker.list_workflows():
         estimated = tracker.get_estimated_duration(workflow)
         if estimated:

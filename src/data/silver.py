@@ -8,6 +8,7 @@ from typing import Tuple
 import duckdb
 import numpy as np
 import pandas as pd
+from sklearn.preprocessing import PolynomialFeatures
 
 DB_PATH = "/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb"
 
@@ -69,6 +70,107 @@ def advanced_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def enhanced_interaction_features(df: pd.DataFrame) -> pd.DataFrame:
+    """強化された交互作用特徴量 - 上位特徴量の組み合わせ"""
+    df = df.copy()
+
+    # 上位特徴量の交互作用項（重要度順）
+    top_features = ["extrovert_score", "social_ratio"]
+
+    # 1. extrovert_score と social_ratio の交互作用
+    if all(col in df.columns for col in top_features):
+        df["extrovert_social_interaction"] = df["extrovert_score"] * df["social_ratio"]
+
+        # 比率ベースの交互作用
+        df["extrovert_social_ratio"] = df["extrovert_score"] / (df["social_ratio"] + 1)
+        df["social_extrovert_ratio"] = df["social_ratio"] / (df["extrovert_score"] + 1)
+
+    # 2. extrovert_score と他の重要特徴量との交互作用
+    if "extrovert_score" in df.columns:
+        if "Social_event_attendance" in df.columns:
+            df["extrovert_social_event_interaction"] = df["extrovert_score"] * df["Social_event_attendance"]
+
+        if "Time_spent_Alone" in df.columns:
+            df["extrovert_alone_interaction"] = df["extrovert_score"] * df["Time_spent_Alone"]
+            df["extrovert_alone_contrast"] = df["extrovert_score"] - df["Time_spent_Alone"]
+
+        if "Drained_after_socializing_encoded" in df.columns:
+            df["extrovert_drain_interaction"] = df["extrovert_score"] * df["Drained_after_socializing_encoded"]
+
+    # 3. social_ratio と他の特徴量との交互作用
+    if "social_ratio" in df.columns:
+        if "Friends_circle_size" in df.columns:
+            df["social_friends_interaction"] = df["social_ratio"] * df["Friends_circle_size"]
+
+        if "Going_outside" in df.columns:
+            df["social_outside_interaction"] = df["social_ratio"] * df["Going_outside"]
+
+        if "Post_frequency" in df.columns:
+            df["social_post_interaction"] = df["social_ratio"] * df["Post_frequency"]
+
+    # 4. 三項交互作用（最重要特徴量のみ）
+    if all(col in df.columns for col in ["extrovert_score", "social_ratio", "Social_event_attendance"]):
+        df["triple_interaction"] = df["extrovert_score"] * df["social_ratio"] * df["Social_event_attendance"]
+
+    return df
+
+
+def polynomial_features(df: pd.DataFrame, degree: int = 2) -> pd.DataFrame:
+    """多項式特徴量生成（degree=2で非線形関係を捕捉）"""
+    df = df.copy()
+
+    # 多項式特徴量を適用する数値特徴量を選定
+    # 重要度の高い特徴量のみに限定してノイズを減らす
+    key_features = []
+
+    # 上位特徴量のみ選択（数値のみ確保）
+    top_numeric_features = [
+        "extrovert_score",
+        "social_ratio",
+        "Social_event_attendance",
+        "Time_spent_Alone",
+        "Friends_circle_size",
+        "Going_outside",
+        "Post_frequency",
+    ]
+
+    for feature in top_numeric_features:
+        if feature in df.columns:
+            # 数値型であることを確認
+            if pd.api.types.is_numeric_dtype(df[feature]):
+                key_features.append(feature)
+
+    if len(key_features) >= 2:  # 最低2つの特徴量が必要
+        try:
+            # 一時的なデータフレームで多項式特徴量生成
+            temp_df = df[key_features].copy()
+
+            # NaNと無限値の処理
+            temp_df = temp_df.fillna(0)
+            temp_df = temp_df.replace([np.inf, -np.inf], 0)
+
+            # PolynomialFeaturesを使用（interaction_only=Falseで二乗項も含む）
+            poly = PolynomialFeatures(degree=degree, include_bias=False, interaction_only=False)
+            poly_features = poly.fit_transform(temp_df)
+
+            # 特徴量名生成
+            feature_names = poly.get_feature_names_out(key_features)
+
+            # 元の特徴量以外の新しい特徴量のみ追加
+            original_features = set(key_features)
+            for i, name in enumerate(feature_names):
+                if name not in original_features:
+                    # 特徴量名をクリーンアップ
+                    clean_name = name.replace(" ", "_").replace("^", "_pow_")
+                    df[f"poly_{clean_name}"] = poly_features[:, i]
+
+        except Exception as e:
+            # エラーが発生した場合はログに記録して続行
+            print(f"Warning: Polynomial feature generation failed: {e}")
+
+    return df
+
+
 def scaling_features(df: pd.DataFrame) -> pd.DataFrame:
     """特徴量スケーリング（標準化）"""
     df = df.copy()
@@ -108,6 +210,14 @@ def create_silver_tables() -> None:
     train_silver = advanced_features(train_bronze)
     test_silver = advanced_features(test_bronze)
 
+    # 強化された交互作用特徴量適用
+    train_silver = enhanced_interaction_features(train_silver)
+    test_silver = enhanced_interaction_features(test_silver)
+
+    # 多項式特徴量適用（degree=2で非線形関係捕捉）
+    train_silver = polynomial_features(train_silver, degree=2)
+    test_silver = polynomial_features(test_silver, degree=2)
+
     # スケーリング適用
     train_silver = scaling_features(train_silver)
     test_silver = scaling_features(test_silver)
@@ -122,7 +232,7 @@ def create_silver_tables() -> None:
     conn.execute("CREATE TABLE silver.train AS SELECT * FROM train_silver_df")
     conn.execute("CREATE TABLE silver.test AS SELECT * FROM test_silver_df")
 
-    print("Silver tables created:")
+    print("Silver tables created: ")
     print(f"- silver.train: {len(train_silver)} rows, {len(train_silver.columns)} columns")
     print(f"- silver.test: {len(test_silver)} rows, {len(test_silver.columns)} columns")
 

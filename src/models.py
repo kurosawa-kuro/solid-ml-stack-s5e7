@@ -6,6 +6,8 @@
 - モデル保存・読み込み機能
 """
 
+# type: ignore
+
 import logging
 import time
 from datetime import datetime
@@ -15,7 +17,9 @@ from typing import Any, Dict, List, Optional, Tuple
 import joblib
 import lightgbm as lgb
 import numpy as np
+import optuna
 import pandas as pd
+from sklearn.model_selection import cross_val_score
 
 from .validation import (
     CVLogger,
@@ -464,3 +468,188 @@ def load_model_with_metadata(filepath: str) -> Tuple[LightGBMModel, Dict[str, An
 
     logger.info(f"Model with metadata loaded from {filepath}")
     return model, metadata
+
+
+class OptunaOptimizer:
+    """Optuna-based hyperparameter optimization for LightGBM"""
+
+    def __init__(self, n_trials: int = 100, cv_folds: int = 5, random_state: int = 42):
+        """
+        Initialize Optuna optimizer
+
+        Args:
+            n_trials: Number of optimization trials
+            cv_folds: Number of CV folds for evaluation
+            random_state: Random state for reproducibility
+        """
+        self.n_trials = n_trials
+        self.cv_folds = cv_folds
+        self.random_state = random_state
+        self.study: Optional[optuna.Study] = None
+        self.best_params: Optional[Dict[str, Any]] = None
+
+        # Suppress Optuna logging noise
+        optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+    def objective(self, trial: optuna.Trial, X: np.ndarray, y: np.ndarray) -> float:
+        """
+        Objective function for Optuna optimization
+
+        Args:
+            trial: Optuna trial object
+            X: Training features
+            y: Training targets
+
+        Returns:
+            Negative accuracy (for minimization)
+        """
+        # Suggest hyperparameters
+        params = {
+            "objective": "binary",
+            "metric": "binary_logloss",
+            "boosting_type": "gbdt",
+            "verbose": -1,
+            "random_state": self.random_state,
+            # Key parameters to optimize
+            "num_leaves": trial.suggest_int("num_leaves", 10, 100),
+            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
+            "max_depth": trial.suggest_int("max_depth", 3, 15),
+            # Additional parameters for fine-tuning
+            "feature_fraction": trial.suggest_float("feature_fraction", 0.6, 1.0),
+            "bagging_fraction": trial.suggest_float("bagging_fraction", 0.6, 1.0),
+            "bagging_freq": trial.suggest_int("bagging_freq", 1, 10),
+            "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
+            "reg_alpha": trial.suggest_float("reg_alpha", 0.0, 1.0),
+            "reg_lambda": trial.suggest_float("reg_lambda", 0.0, 1.0),
+        }
+
+        try:
+            # Create model
+            model = lgb.LGBMClassifier(**params)  # type: ignore
+
+            # Perform cross-validation
+            scores = cross_val_score(model, X, y, cv=self.cv_folds, scoring="accuracy", n_jobs=-1)
+
+            # Return negative mean score (Optuna minimizes)
+            return -scores.mean()
+
+        except Exception as e:
+            logger.warning(f"Trial failed: {e}")
+            return 0.0  # Return worst score for failed trials
+
+    def optimize(self, X: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
+        """
+        Run hyperparameter optimization
+
+        Args:
+            X: Training features
+            y: Training targets
+
+        Returns:
+            Optimization results dictionary
+        """
+        logger.info(f"Starting Optuna optimization with {self.n_trials} trials...")
+
+        # Create study
+        self.study = optuna.create_study(
+            direction="minimize", sampler=optuna.samplers.TPESampler(seed=self.random_state)
+        )
+
+        # Optimize
+        start_time = time.time()
+        self.study.optimize(lambda trial: self.objective(trial, X, y), n_trials=self.n_trials, show_progress_bar=True)
+        optimization_time = time.time() - start_time
+
+        # Extract best parameters
+        if self.study.best_params is not None:
+            self.best_params = self.study.best_params.copy()
+            if self.best_params is not None:
+                self.best_params.update(
+                    {
+                        "objective": "binary",
+                        "metric": "binary_logloss",
+                        "boosting_type": "gbdt",
+                        "verbose": -1,
+                        "random_state": self.random_state,
+                    }
+                )
+        else:
+            raise ValueError("Optimization failed to find best parameters")
+
+        # Create results dictionary
+        results = {
+            "best_params": self.best_params,
+            "best_score": -self.study.best_value if self.study.best_value is not None else 0.0,
+            "n_trials": len(self.study.trials),
+            "optimization_time": optimization_time,
+            "study": self.study,
+        }
+
+        logger.info("Optimization completed: ")
+        logger.info(f"Best score: {results['best_score']: .4f}")
+        logger.info(f"Best params: {self.best_params}")
+        logger.info(f"Optimization time: {optimization_time: .1f} seconds")
+
+        return results
+
+    def get_feature_importance_analysis(self) -> pd.DataFrame:
+        """
+        Analyze parameter importance from optimization
+
+        Returns:
+            DataFrame with parameter importance
+        """
+        if self.study is None:
+            raise ValueError("Must run optimization first")
+
+        importance = optuna.importance.get_param_importances(self.study)
+
+        importance_df = pd.DataFrame(
+            [{"parameter": param, "importance": imp} for param, imp in importance.items()]
+        ).sort_values("importance", ascending=False)
+
+        return importance_df
+
+
+def optimize_lightgbm_hyperparams(
+    X: np.ndarray, y: np.ndarray, n_trials: int = 100, cv_folds: int = 5, random_state: int = 42
+) -> Dict[str, Any]:
+    """
+    Convenience function for LightGBM hyperparameter optimization
+
+    Args:
+        X: Training features
+        y: Training targets
+        n_trials: Number of optimization trials
+        cv_folds: Number of CV folds
+        random_state: Random state
+
+    Returns:
+        Optimization results
+    """
+    optimizer = OptunaOptimizer(n_trials=n_trials, cv_folds=cv_folds, random_state=random_state)
+    return optimizer.optimize(X, y)
+
+
+def create_optimized_model(
+    optimization_results: Dict[str, Any], feature_names: Optional[List[str]] = None
+) -> LightGBMModel:
+    """
+    Create LightGBM model with optimized hyperparameters
+
+    Args:
+        optimization_results: Results from hyperparameter optimization
+        feature_names: Optional feature names
+
+    Returns:
+        LightGBMModel with optimized parameters
+    """
+    best_params = optimization_results["best_params"]
+    model = LightGBMModel(params=best_params)
+
+    if feature_names:
+        model.feature_names = feature_names
+
+    logger.info(f"Created optimized model with score: {optimization_results['best_score']: .4f}")
+
+    return model

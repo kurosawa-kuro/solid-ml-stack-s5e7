@@ -6,15 +6,15 @@ from src.util.notifications import WebhookNotifier, notify_complete, notify_erro
 class TestWebhookNotifier:
     """Test WebhookNotifier normal cases only."""
 
-    @patch.dict("os.environ", {"WEBHOOK_DISCORD": "https://discord.com/api/webhooks/test"})
+    @patch.dict("os.environ", {"WEBHOOK_DISCORD": "https: //discord.com/api/webhooks/test"})
     def test_init_with_env_var(self):
         """Test initialization with environment variable."""
         notifier = WebhookNotifier()
-        assert notifier.webhook_url == "https://discord.com/api/webhooks/test"
+        assert notifier.webhook_url == "https: //discord.com/api/webhooks/test"
 
     def test_init_with_url_parameter(self):
         """Test initialization with URL parameter."""
-        url = "https://discord.com/api/webhooks/custom"
+        url = "https: //discord.com/api/webhooks/custom"
         notifier = WebhookNotifier(webhook_url=url)
         assert notifier.webhook_url == url
 
@@ -25,7 +25,7 @@ class TestWebhookNotifier:
         mock_response.status_code = 204
         mock_post.return_value = mock_response
 
-        notifier = WebhookNotifier("https://discord.com/api/webhooks/test")
+        notifier = WebhookNotifier("https: //discord.com/api/webhooks/test")
         result = notifier.send_message("Test message")
 
         assert result is True
@@ -38,7 +38,7 @@ class TestWebhookNotifier:
         mock_response.status_code = 204
         mock_post.return_value = mock_response
 
-        notifier = WebhookNotifier("https://discord.com/api/webhooks/test")
+        notifier = WebhookNotifier("https: //discord.com/api/webhooks/test")
         embeds = [{"title": "Test", "color": 123}]
         result = notifier.send_message("Test", embeds=embeds)
 
@@ -53,7 +53,7 @@ class TestWebhookNotifier:
         mock_response.status_code = 204
         mock_post.return_value = mock_response
 
-        notifier = WebhookNotifier("https://discord.com/api/webhooks/test")
+        notifier = WebhookNotifier("https: //discord.com/api/webhooks/test")
         config = {"learning_rate": 0.1, "num_leaves": 31, "n_estimators": 100}
         result = notifier.notify_training_start("LightGBM", config)
 
@@ -66,7 +66,7 @@ class TestWebhookNotifier:
         mock_response.status_code = 204
         mock_post.return_value = mock_response
 
-        notifier = WebhookNotifier("https://discord.com/api/webhooks/test")
+        notifier = WebhookNotifier("https: //discord.com/api/webhooks/test")
         metrics = {"accuracy": 0.95, "f1": 0.93}
         result = notifier.notify_training_complete("XGBoost", metrics, 120.5)
 
@@ -79,7 +79,7 @@ class TestWebhookNotifier:
         mock_response.status_code = 204
         mock_post.return_value = mock_response
 
-        notifier = WebhookNotifier("https://discord.com/api/webhooks/test")
+        notifier = WebhookNotifier("https: //discord.com/api/webhooks/test")
         result = notifier.notify_error("training", "Memory error occurred")
 
         assert result is True
@@ -91,7 +91,7 @@ class TestWebhookNotifier:
         mock_response.status_code = 204
         mock_post.return_value = mock_response
 
-        notifier = WebhookNotifier("https://discord.com/api/webhooks/test")
+        notifier = WebhookNotifier("https: //discord.com/api/webhooks/test")
         result = notifier.notify_submission(0.975, rank=100, improvement=0.002)
 
         assert result is True

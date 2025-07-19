@@ -289,7 +289,7 @@ def main():
 
             # Final summary
             logger.info("=" * 50)
-            logger.info("Training Summary:")
+            logger.info("Training Summary: ")
             logger.info(f"CV Accuracy: {cv_results['mean_score']: .4f} ± {cv_results['std_score']: .4f}")
             logger.info(f"CV AUC: {cv_results['mean_auc']: .4f} ± {cv_results['std_auc']: .4f}")
             logger.info(f"Training Time: {cv_results['training_time']: .1f} seconds")

@@ -61,7 +61,8 @@ class WorkflowTimeTracker:
         if estimated_duration:
             estimated_end = datetime.now() + timedelta(seconds=estimated_duration)
             print(f"🚀 Starting workflow: {workflow_name}")
-            print(f"⏱️  Estimated completion: {estimated_end.strftime('%H:%M: %S')} " f"({int(estimated_duration)}s)")
+            completion_time = estimated_end.strftime("%H: %M: %S")
+            print(f"⏱️  Estimated completion: {completion_time} ({int(estimated_duration)}s)")
         else:
             print(f"🚀 Starting workflow: {workflow_name} " "(first run, no estimate available)")
 
@@ -184,7 +185,7 @@ class WorkflowTimeTracker:
         for workflow_name in self.list_workflows():
             stats = self.get_workflow_stats(workflow_name)
             if stats:
-                print(f"\n{workflow_name}:")
+                print(f"\n{workflow_name}: ")
                 print(f"  Average: {stats.get('average', 0): .2f}s")
                 print(f"  Median: {stats.get('median', 0): .2f}s")
                 print(f"  Range: {stats.get('min', 0): .2f}s - " f"{stats.get('max', 0): .2f}s")
@@ -284,7 +285,7 @@ if __name__ == "__main__":
     print(f"Result: {result}")
 
     # Show statistics
-    print("\nAll statistics:")
+    print("\nAll statistics: ")
     tracker.print_all_stats()
 
     # Clean up test file

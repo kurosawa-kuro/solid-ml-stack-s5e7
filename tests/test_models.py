@@ -290,7 +290,7 @@ class TestModelPersistence:
                 "params": {"learning_rate": 0.1, "num_leaves": 31},
                 "feature_names": ["f1", "f2", "f3"],
                 "cv_score": 0.975,
-                "timestamp": "2024-01-01T12:00:00",
+                "timestamp": "2024-01-01T12: 00: 00",
             }
 
             model_path = os.path.join(temp_dir, "model.pkl")

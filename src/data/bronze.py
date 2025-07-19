@@ -85,7 +85,7 @@ def create_bronze_tables() -> None:
     conn.execute("CREATE TABLE bronze.train AS SELECT * FROM train_bronze_df")
     conn.execute("CREATE TABLE bronze.test AS SELECT * FROM test_bronze_df")
 
-    print("Bronze tables created:")
+    print("Bronze tables created: ")
     print(f"- bronze.train: {len(train_bronze)} rows")
     print(f"- bronze.test: {len(test_bronze)} rows")
 

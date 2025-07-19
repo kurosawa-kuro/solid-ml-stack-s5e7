@@ -10,30 +10,160 @@ from typing import Any, List, Optional, Tuple
 import duckdb
 import numpy as np
 import pandas as pd
+from sklearn.feature_selection import SelectKBest, f_classif, mutual_info_classif
 from sklearn.preprocessing import StandardScaler
 
 DB_PATH = "/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb"
 
 
-def prepare_model_data(df: pd.DataFrame, target_col: str = None, feature_cols: List[str] = None) -> pd.DataFrame:
-    """モデル学習用データ準備"""
+def clean_and_validate_features(df: pd.DataFrame) -> pd.DataFrame:
+    """特徴量のクリーニングと検証"""
     df = df.copy()
+
+    # 無限値と極端な外れ値の処理
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+
+    for col in numeric_cols:
+        if col not in ["id"]:  # IDカラムはスキップ
+            # 無限値をNaNに変換
+            df[col] = df[col].replace([np.inf, -np.inf], np.nan)
+
+            # 極端な外れ値の処理（IQR法）
+            if df[col].notna().any():
+                Q1 = df[col].quantile(0.25)
+                Q3 = df[col].quantile(0.75)
+                IQR = Q3 - Q1
+                lower_bound = Q1 - 3 * IQR  # 3 IQRs instead of 1.5 for less aggressive
+                upper_bound = Q3 + 3 * IQR
+
+                # クリップして外れ値を境界値に設定
+                df[col] = df[col].clip(lower=lower_bound, upper=upper_bound)
+
+    # 欠損値の処理
+    for col in numeric_cols:
+        if col not in ["id"] and df[col].isna().any():
+            # 中央値で補完
+            df[col] = df[col].fillna(df[col].median())
+
+    return df
+
+
+def select_best_features(df: pd.DataFrame, target_col: str, k: int = 30) -> List[str]:
+    """統計的特徴量選択でトップK特徴量を選択"""
+    # 数値特徴量のみを選択（カテゴリカル変数は除外）
+    feature_cols = []
+    for col in df.columns:
+        if col not in ["id", target_col, f"{target_col}_encoded"]:
+            # 数値型の列のみを含める
+            if pd.api.types.is_numeric_dtype(df[col]):
+                feature_cols.append(col)
+
+    if len(feature_cols) <= k:
+        return feature_cols
+
+    # ターゲットが文字列の場合は数値に変換
+    if df[target_col].dtype == "object":
+        target_values = (df[target_col] == "Extrovert").astype(int)
+    else:
+        target_values = df[target_col]
+
+    # 数値特徴量データのみを抽出してNaN処理
+    X_df = df[feature_cols].copy()
+
+    # NaNと無限値の処理
+    for col in X_df.columns:
+        X_df[col] = X_df[col].replace([np.inf, -np.inf], np.nan)
+        X_df[col] = X_df[col].fillna(X_df[col].median())
+
+    X = X_df.values
+    y = target_values.values
+
+    try:
+        # 2つの特徴量選択手法を組み合わせ
+        # 1. F統計量ベース
+        selector_f = SelectKBest(score_func=f_classif, k=min(k, len(feature_cols)))
+        selector_f.fit(X, y)
+
+        # 2. 相互情報量ベース
+        selector_mi = SelectKBest(score_func=mutual_info_classif, k=min(k, len(feature_cols)))
+        selector_mi.fit(X, y)
+
+        # 両方の手法で上位に選ばれた特徴量を優先
+        f_scores = selector_f.scores_
+        mi_scores = selector_mi.scores_
+
+        # 正規化してスコアを結合
+        f_scores_norm = (f_scores - f_scores.min()) / (f_scores.max() - f_scores.min() + 1e-8)
+        mi_scores_norm = (mi_scores - mi_scores.min()) / (mi_scores.max() - mi_scores.min() + 1e-8)
+
+        combined_scores = f_scores_norm + mi_scores_norm
+
+        # トップK特徴量のインデックス取得
+        top_indices = np.argsort(combined_scores)[-k:][::-1]
+
+        selected_features = [feature_cols[i] for i in top_indices]
+
+        return selected_features
+
+    except Exception as e:
+        print(f"Warning: Feature selection failed, using default features: {e}")
+        # フォールバック: 上位の特徴量を手動選択
+        return feature_cols[:k]
+
+
+def prepare_model_data(
+    df: pd.DataFrame, target_col: str = None, feature_cols: List[str] = None, auto_select: bool = True
+) -> pd.DataFrame:
+    """改良されたモデル学習用データ準備"""
+    df = df.copy()
+
+    # データクリーニング
+    df = clean_and_validate_features(df)
 
     # 特徴量選択
     if feature_cols is None:
-        # デフォルト特徴量セット
-        feature_cols = [
-            "extrovert_score",
-            "introvert_score",
-            "Social_event_attendance",
-            "Time_spent_Alone",
-            "Drained_after_socializing_encoded",
-            "Stage_fear_encoded",
-            "social_ratio",
-            "Friends_circle_size",
-            "Going_outside",
-            "Post_frequency",
-        ]
+        if auto_select and target_col and target_col in df.columns:
+            # 自動特徴量選択
+            selected_features = select_best_features(df, target_col, k=30)
+        else:
+            # デフォルト特徴量セット（拡張版）
+            default_features = [
+                "extrovert_score",
+                "social_ratio",
+                "Social_event_attendance",
+                "Time_spent_Alone",
+                "Drained_after_socializing_encoded",
+                "Stage_fear_encoded",
+                "Friends_circle_size",
+                "Going_outside",
+                "Post_frequency",
+                "introvert_score",
+                "activity_sum",
+                "post_per_friend",
+                "fear_drain_interaction",
+                "total_activity",
+                "avg_activity",
+                # 新しい交互作用特徴量
+                "extrovert_social_interaction",
+                "extrovert_social_ratio",
+                "social_extrovert_ratio",
+                "extrovert_social_event_interaction",
+                "extrovert_alone_interaction",
+                "extrovert_alone_contrast",
+                "extrovert_drain_interaction",
+                "social_friends_interaction",
+                "social_outside_interaction",
+                "social_post_interaction",
+                "triple_interaction",
+            ]
+
+            # 多項式特徴量も含める（存在する場合）
+            poly_features = [col for col in df.columns if col.startswith("poly_")]
+            default_features.extend(poly_features)
+
+            selected_features = default_features
+
+        feature_cols = selected_features
 
     # 使用可能な特徴量のみ選択
     available_features = [col for col in feature_cols if col in df.columns]
@@ -96,7 +226,7 @@ def create_gold_tables() -> None:
     conn.execute("CREATE TABLE gold.train AS SELECT * FROM train_gold_df")
     conn.execute("CREATE TABLE gold.test AS SELECT * FROM test_gold_df")
 
-    print("Gold tables created:")
+    print("Gold tables created: ")
     print(f"- gold.train: {len(train_gold)} rows, {len(train_gold.columns)} columns")
     print(f"- gold.test: {len(test_gold)} rows, {len(test_gold.columns)} columns")
 

@@ -127,11 +127,11 @@ class TestDataPreparation:
 
         # 欠損値チェック
         has_missing = valid_data.isnull().any().any()
-        assert has_missing is False
+        assert not has_missing
 
         # 無限値チェック
         has_infinite = np.isinf(valid_data.select_dtypes(include=[np.number])).any().any()
-        assert has_infinite is False
+        assert not has_infinite
 
         # 形状チェック
         assert len(valid_data) > 0
@@ -152,8 +152,8 @@ class TestDataPreparation:
         has_missing = invalid_data.isnull().any().any()
         has_infinite = np.isinf(invalid_data.select_dtypes(include=[np.number])).any().any()
 
-        assert has_missing is True
-        assert has_infinite is True
+        assert has_missing
+        assert has_infinite
 
 
 class TestModelTraining:
@@ -247,7 +247,7 @@ class TestResultOutput:
         # model_data = {
         #     "model": "dummy_lgb_model",
         #     "cv_results": {"mean_score":  0.975},
-        #     "timestamp": "2024-01-01T12:00:00",
+        #     "timestamp": "2024-01-01T12: 00: 00",
         # }
 
         # 保存実行（実装後に修正）
@@ -259,7 +259,7 @@ class TestResultOutput:
         """ログファイル作成のテスト"""
         with tempfile.TemporaryDirectory() as temp_dir:
             log_data = {
-                "timestamp": "2024-01-01T12:00:00",
+                "timestamp": "2024-01-01T12: 00: 00",
                 "model_type": "LightGBM",
                 "cv_score": 0.975,
                 "parameters": {"learning_rate": 0.1},

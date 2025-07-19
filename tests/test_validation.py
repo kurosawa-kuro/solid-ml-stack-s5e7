@@ -38,7 +38,7 @@ class TestCVStrategy:
         """層化抽出でのクラス分布保持テスト"""
         # 不均衡データ
         X = np.random.random((100, 3))
-        y = np.concatenate([np.zeros(80), np.ones(20)])  # 80:20の不均衡
+        y = np.concatenate([np.zeros(80), np.ones(20)])  # 80: 20の不均衡
 
         cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
 
@@ -153,18 +153,18 @@ class TestDataIntegrityChecks:
         data_with_nan = np.array([[1.0, 2.0], [np.nan, 4.0], [5.0, 6.0]])
 
         has_nan = np.isnan(data_with_nan).any()
-        assert has_nan is True
+        assert has_nan
 
         data_without_nan = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
         has_nan_clean = np.isnan(data_without_nan).any()
-        assert has_nan_clean is False
+        assert not has_nan_clean
 
     def test_infinite_value_detection(self):
         """無限値検出のテスト"""
         data_with_inf = np.array([[1.0, 2.0], [np.inf, 4.0], [5.0, 6.0]])
 
         has_inf = np.isinf(data_with_inf).any()
-        assert has_inf is True
+        assert has_inf
 
     def test_target_distribution_check(self):
         """ターゲット分布確認のテスト"""
@@ -183,7 +183,7 @@ class TestCVLogging:
     def test_log_structure(self):
         """ログ構造のテスト"""
         log_entry = {
-            "timestamp": "2024-01-01T12:00:00",
+            "timestamp": "2024-01-01T12: 00: 00",
             "model_type": "LightGBM",
             "cv_config": {"n_splits": 5, "random_state": 42},
             "fold_scores": [0.97, 0.96, 0.98],

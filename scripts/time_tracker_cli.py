@@ -52,7 +52,7 @@ Examples:
     elif args.list:
         workflows = tracker.list_workflows()
         if workflows:
-            print("📋 Tracked Workflows:")
+            print("📋 Tracked Workflows: ")
             for workflow in workflows:
                 stats = tracker.get_workflow_stats(workflow)
                 count = stats.get("count", 0) if stats else 0
