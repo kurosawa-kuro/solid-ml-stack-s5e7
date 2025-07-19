@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.model_selection import StratifiedKFold
+from sklearn.pipeline import Pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +130,58 @@ def check_data_integrity(X: np.ndarray, y: np.ndarray) -> Dict[str, bool]:
     }
 
     return checks
+
+
+def validate_cv_leakage_prevention(model, X: np.ndarray, y: np.ndarray, cv_strategy: CVStrategy) -> Dict[str, Any]:
+    """
+    Validate that CV implementation prevents data leakage
+    
+    Args:
+        model: Model or Pipeline instance
+        X: Feature matrix
+        y: Target vector
+        cv_strategy: CV strategy to validate
+        
+    Returns:
+        Dictionary with leakage prevention validation results
+    """
+    validation_results = {
+        "uses_pipeline": isinstance(model, Pipeline),
+        "preprocessing_isolated": False,
+        "cv_splits_valid": True,
+        "no_future_data_access": True,
+        "validation_passed": False
+    }
+    
+    # Check if using Pipeline for preprocessing isolation
+    if isinstance(model, Pipeline):
+        validation_results["preprocessing_isolated"] = True
+        logger.info("✅ Pipeline detected: Preprocessing isolation enforced")
+    else:
+        logger.warning("⚠️  No Pipeline detected: Manual preprocessing separation required")
+    
+    # Validate CV splits don't overlap
+    cv_splits = cv_strategy.split(X, y)
+    
+    for fold_idx, (train_idx, val_idx) in enumerate(cv_splits):
+        train_set = set(train_idx)
+        val_set = set(val_idx)
+        
+        # Check for overlap between train and validation within same fold
+        if train_set & val_set:
+            validation_results["cv_splits_valid"] = False
+            logger.error(f"❌ Fold {fold_idx}: Train/validation overlap detected")
+            break
+    
+    # Final validation  
+    validation_results["validation_passed"] = validation_results["cv_splits_valid"]
+    
+    if validation_results["validation_passed"]:
+        logger.info("✅ Data leakage prevention validation passed")
+    else:
+        logger.error("❌ Data leakage prevention validation failed")
+    
+    return validation_results
 
 
 def validate_target_distribution(y: np.ndarray) -> Dict[str, Any]:

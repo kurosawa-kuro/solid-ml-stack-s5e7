@@ -20,16 +20,29 @@ import numpy as np
 import optuna
 import pandas as pd
 from sklearn.model_selection import cross_val_score
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
-from .validation import (
-    CVLogger,
-    CVStrategy,
-    aggregate_cv_scores,
-    calculate_accuracy,
-    calculate_auc,
-    calculate_prediction_distribution,
-    check_data_integrity,
-)
+try:
+    from .validation import (
+        CVLogger,
+        CVStrategy,
+        aggregate_cv_scores,
+        calculate_accuracy,
+        calculate_auc,
+        calculate_prediction_distribution,
+        check_data_integrity,
+    )
+except ImportError:
+    from validation import (
+        CVLogger,
+        CVStrategy,
+        aggregate_cv_scores,
+        calculate_accuracy,
+        calculate_auc,
+        calculate_prediction_distribution,
+        check_data_integrity,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -52,17 +65,20 @@ LIGHTGBM_PARAMS = {
 class LightGBMModel:
     """LightGBM model wrapper with training and prediction functionality"""
 
-    def __init__(self, params: Optional[Dict[str, Any]] = None):
+    def __init__(self, params: Optional[Dict[str, Any]] = None, use_pipeline: bool = True):
         """
         Initialize LightGBM model
 
         Args:
             params: Model hyperparameters (uses defaults if None)
+            use_pipeline: Whether to use Pipeline for strict preprocessing separation
         """
         self.params = params or LIGHTGBM_PARAMS.copy()
         self.model: Optional[lgb.LGBMClassifier] = None
+        self.pipeline: Optional[Pipeline] = None
         self.feature_names: Optional[List[str]] = None
         self.is_fitted = False
+        self.use_pipeline = use_pipeline
 
         # Validate parameters
         self._validate_params()
@@ -94,7 +110,7 @@ class LightGBMModel:
 
     def fit(self, X: np.ndarray, y: np.ndarray, feature_names: Optional[List[str]] = None) -> "LightGBMModel":
         """
-        Train the model
+        Train the model with strict preprocessing separation
 
         Args:
             X: Training features
@@ -112,20 +128,30 @@ class LightGBMModel:
         else:
             self.feature_names = [f"feature_{i}" for i in range(X.shape[1])]
 
-        # Create and train model
-        self.model = lgb.LGBMClassifier(**self.params)
-        self.model.fit(X, y)
+        if self.use_pipeline:
+            # Create Pipeline with strict preprocessing separation
+            self.pipeline = Pipeline([
+                ('scaler', StandardScaler()),
+                ('model', lgb.LGBMClassifier(**self.params))
+            ])
+            self.pipeline.fit(X, y)
+            self.model = self.pipeline.named_steps['model']
+        else:
+            # Direct model training (legacy mode)
+            self.model = lgb.LGBMClassifier(**self.params)
+            self.model.fit(X, y)
+        
         self.is_fitted = True
 
         if self.feature_names is not None:
-            logger.info(f"LightGBM model trained with {len(self.feature_names)} features")
+            logger.info(f"LightGBM model trained with {len(self.feature_names)} features (Pipeline: {self.use_pipeline})")
         else:
-            logger.info("LightGBM model trained")
+            logger.info(f"LightGBM model trained (Pipeline: {self.use_pipeline})")
         return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """
-        Make predictions
+        Make predictions using Pipeline or direct model
 
         Args:
             X: Features to predict on
@@ -133,14 +159,19 @@ class LightGBMModel:
         Returns:
             Binary predictions (0/1)
         """
-        if not self.is_fitted or self.model is None:
+        if not self.is_fitted:
             raise ValueError("Model must be fitted before making predictions")
 
-        return np.asarray(self.model.predict(X))
+        if self.use_pipeline and self.pipeline is not None:
+            return np.asarray(self.pipeline.predict(X))
+        elif self.model is not None:
+            return np.asarray(self.model.predict(X))
+        else:
+            raise ValueError("Neither pipeline nor model is available for predictions")
 
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """
-        Predict class probabilities
+        Predict class probabilities using Pipeline or direct model
 
         Args:
             X: Features to predict on
@@ -148,10 +179,15 @@ class LightGBMModel:
         Returns:
             Prediction probabilities
         """
-        if not self.is_fitted or self.model is None:
+        if not self.is_fitted:
             raise ValueError("Model must be fitted before making predictions")
 
-        return np.asarray(self.model.predict_proba(X))
+        if self.use_pipeline and self.pipeline is not None:
+            return np.asarray(self.pipeline.predict_proba(X))
+        elif self.model is not None:
+            return np.asarray(self.model.predict_proba(X))
+        else:
+            raise ValueError("Neither pipeline nor model is available for predictions")
 
     def get_feature_importance(self, importance_type: str = "gain") -> pd.DataFrame:
         """
@@ -186,9 +222,11 @@ class LightGBMModel:
 
         model_data = {
             "model": self.model,
+            "pipeline": self.pipeline if self.use_pipeline else None,
             "params": self.params,
             "feature_names": self.feature_names,
             "is_fitted": self.is_fitted,
+            "use_pipeline": self.use_pipeline,
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -211,8 +249,10 @@ class LightGBMModel:
         """
         model_data = joblib.load(filepath)
 
-        instance = cls(params=model_data["params"])
+        use_pipeline = model_data.get("use_pipeline", False)
+        instance = cls(params=model_data["params"], use_pipeline=use_pipeline)
         instance.model = model_data["model"]
+        instance.pipeline = model_data.get("pipeline")
         instance.feature_names = model_data["feature_names"]
         instance.is_fitted = model_data["is_fitted"]
 

@@ -280,3 +280,23 @@ def get_feature_names() -> List[str]:
     """使用特徴量名取得"""
     train, _ = load_gold_data()
     return [col for col in train.columns if col not in ["id", "Personality", "Personality_encoded"]]
+
+
+def extract_model_arrays(df: pd.DataFrame, target_col: str = "Personality") -> Tuple[np.ndarray, np.ndarray, List[str]]:
+    """DataFrameからX, y, feature_namesを抽出 (後方互換性のため)"""
+    # 特徴量列を特定
+    feature_cols = [col for col in df.columns if col not in ["id", target_col, f"{target_col}_encoded"]]
+    
+    # X (特徴量行列)
+    X = df[feature_cols].values
+    
+    # y (ターゲット)
+    if f"{target_col}_encoded" in df.columns:
+        y = df[f"{target_col}_encoded"].values
+    elif target_col in df.columns:
+        # 文字列ターゲットをエンコード
+        y = (df[target_col] == "Extrovert").astype(int).values
+    else:
+        raise ValueError(f"Target column '{target_col}' or '{target_col}_encoded' not found")
+    
+    return X, y, feature_cols
