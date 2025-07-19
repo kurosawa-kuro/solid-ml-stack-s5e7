@@ -1,5 +1,5 @@
 # Minimal Makefile for S5E7 Personality Prediction
-.PHONY: install test clean help quick-test personality-prediction time-stats time-list time-demo simple-predict enhanced-predict
+.PHONY: install test clean help train-fast-dev train-full-optimized train-max-performance predict-basic predict-gold validate-cv
 
 # Core installation
 install:
@@ -13,37 +13,37 @@ setup:
 	mkdir -p data/raw data/processed outputs submissions logs
 	touch data/raw/.gitkeep data/processed/.gitkeep outputs/.gitkeep submissions/.gitkeep logs/.gitkeep
 
-# Quick test (single model)
-quick-test:
-	@echo "Running quick test workflow..."
-	python3 scripts/quick_test_workflow.py \
-		--target-col Personality \
-		--problem-type classification \
-		--missing-strategy model_specific \
-		--output-dir outputs/quick_test
+# Quick CV validation
+validate-cv:
+	@echo "Running quick CV validation..."
+	PYTHONPATH=. python3 scripts/validate_quick_cv.py
 
-# Full personality prediction workflow
-personality-prediction:
-	python3 scripts/kaggle_workflow.py \
-		--target-col Personality \
-		--problem-type classification \
-		--output-dir outputs \
-		--optimize \
-		--ensemble
+# Training commands
 
-# Enhanced Silver layer training for Bronze medal
-train-silver-enhanced:
-	python scripts/train_silver_enhanced.py
+train-fast-dev:
+	@echo "Running fast development training..."
+	PYTHONPATH=. python3 scripts/train_fast_dev.py
 
-# Simple prediction with data cleaning (handles nan/inf issues)
-simple-predict:
-	@echo "Running simple prediction with data cleaning..."
-	python3 scripts/simple_predict.py
+train-full-optimized:
+	@echo "Running full optimized training..."
+	PYTHONPATH=. python3 scripts/train_full_optimized.py
 
-# Enhanced prediction using Gold layer features
-enhanced-predict:
-	@echo "Running enhanced prediction with Gold layer features..."
-	PYTHONPATH=. python3 scripts/predict_with_gold.py
+train-max-performance:
+	@echo "Running maximum performance training..."
+	PYTHONPATH=. python3 scripts/train_max_performance.py
+
+
+# Prediction commands
+
+# Basic submission prediction
+predict-basic:
+	@echo "Running basic submission prediction..."
+	PYTHONPATH=. python3 scripts/predict_basic_submission.py
+
+# Gold submission prediction
+predict-gold:
+	@echo "Running gold submission prediction..."
+	PYTHONPATH=. python3 scripts/predict_gold_submission.py
 
 # Code quality - unified with pre-commit hooks
 lint:
@@ -64,15 +64,6 @@ lint-fix: format
 test:
 	PYTHONPATH=. pytest tests/ -v
 
-# Time tracking commands
-time-stats:
-	python3 scripts/time_tracker_cli.py --stats
-
-time-list:
-	python3 scripts/time_tracker_cli.py --list
-
-time-demo:
-	python3 scripts/demo_time_tracker.py
 
 # Clean outputs
 clean:
@@ -90,21 +81,21 @@ help:
 	@echo "  make setup               - Create directories"
 	@echo ""
 	@echo "Run:"
-	@echo "  make quick-test          - Quick single model test"
-	@echo "  make personality-prediction - Full workflow with optimization"
-	@echo "  make train-silver-enhanced - Enhanced Silver training for Bronze medal"
-	@echo "  make simple-predict      - Simple prediction with data cleaning (handles nan/inf)"
-	@echo "  make enhanced-predict    - Enhanced prediction with Gold layer features"
+	@echo "  make validate-cv         - Quick CV validation"
+	@echo ""
+	@echo "Training:"
+	@echo "  make train-fast-dev      - Fast development training"
+	@echo "  make train-full-optimized - Full optimized training"
+	@echo "  make train-max-performance - Maximum performance training"
+	@echo ""
+	@echo "Prediction:"
+	@echo "  make predict-basic       - Basic submission prediction"
+	@echo "  make predict-gold        - Gold submission prediction"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make lint                - Check code quality (black, flake8, mypy)"
 	@echo "  make format              - Format code with black"
 	@echo "  make lint-fix            - Format and show results"
-	@echo ""
-	@echo "Time Tracking:"
-	@echo "  make time-stats          - Show workflow time statistics"
-	@echo "  make time-list           - List tracked workflows"
-	@echo "  make time-demo           - Run time tracking demo"
 	@echo ""
 	@echo "Maintenance:"
 	@echo "  make test                - Run tests"

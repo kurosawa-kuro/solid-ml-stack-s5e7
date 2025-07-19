@@ -19,7 +19,7 @@ from sklearn.model_selection import StratifiedKFold
 sys.path.append(str(Path(__file__).parent.parent))
 
 from src.data.bronze import load_data
-from src.data.silver_enhanced import apply_enhanced_silver_features
+from src.data.silver import EnhancedSilverPreprocessor
 from src.models import LightGBMModel
 
 warnings.filterwarnings("ignore")

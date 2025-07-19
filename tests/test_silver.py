@@ -7,12 +7,11 @@ import pandas as pd
 import pytest
 from sklearn.model_selection import train_test_split
 
-from src.data.silver_enhanced import (
+from src.data.silver import (
     LightGBMFeatureEngineer,
     CVSafeTargetEncoder,
     AdvancedStatisticalFeatures,
-    EnhancedSilverPreprocessor,
-    apply_enhanced_silver_features
+    EnhancedSilverPreprocessor
 )
 
 
