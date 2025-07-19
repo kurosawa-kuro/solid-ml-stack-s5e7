@@ -57,3 +57,44 @@ def basic_features(df: pd.DataFrame) -> pd.DataFrame:
         df["activity_sum"] = df["Going_outside"] + df["Social_event_attendance"]
 
     return df
+
+
+def create_bronze_tables() -> None:
+    """bronze層テーブルをDuckDBに作成"""
+    conn = duckdb.connect(DB_PATH)
+    
+    # bronzeスキーマ作成
+    conn.execute("CREATE SCHEMA IF NOT EXISTS bronze")
+    
+    # 生データを読み込んで前処理
+    train_raw = conn.execute("SELECT * FROM playground_series_s5e7.train").df()
+    test_raw = conn.execute("SELECT * FROM playground_series_s5e7.test").df()
+    
+    # 前処理適用
+    train_bronze = quick_preprocess(train_raw)
+    test_bronze = quick_preprocess(test_raw)
+    
+    # bronzeテーブル作成・挿入
+    conn.execute("DROP TABLE IF EXISTS bronze.train")
+    conn.execute("DROP TABLE IF EXISTS bronze.test")
+    
+    conn.register('train_bronze_df', train_bronze)
+    conn.register('test_bronze_df', test_bronze)
+    
+    conn.execute("CREATE TABLE bronze.train AS SELECT * FROM train_bronze_df")
+    conn.execute("CREATE TABLE bronze.test AS SELECT * FROM test_bronze_df")
+    
+    print(f"Bronze tables created:")
+    print(f"- bronze.train: {len(train_bronze)} rows")
+    print(f"- bronze.test: {len(test_bronze)} rows")
+    
+    conn.close()
+
+
+def load_bronze_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """bronze層データ読み込み"""
+    conn = duckdb.connect(DB_PATH)
+    train = conn.execute("SELECT * FROM bronze.train").df()
+    test = conn.execute("SELECT * FROM bronze.test").df()
+    conn.close()
+    return train, test

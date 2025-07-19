@@ -1,119 +1,154 @@
 """
 Silver Level Data Management
-構造化・再利用可能・中規模システム
+Feature Engineering & Advanced Preprocessing
 """
 
-from typing import Tuple, Dict, Optional
+from typing import Tuple
 import pandas as pd
+import numpy as np
 import duckdb
 
-
-class DataPipeline:
-    """構造化されたデータ処理パイプライン"""
-
-    def __init__(self, db_path: str, config: Optional[Dict] = None):
-        self.db_path = db_path
-        self.config = config or {}
-        self.conn = None
-
-    def _connect(self):
-        """データベース接続"""
-        if self.conn is None:
-            self.conn = duckdb.connect(self.db_path)
-        return self.conn
-
-    def load_raw(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """Raw データ読み込み"""
-        conn = self._connect()
-        train = conn.execute("SELECT * FROM playground_series_s5e7.train").df()
-        test = conn.execute("SELECT * FROM playground_series_s5e7.test").df()
-        return train, test
-
-    def preprocess(self, df: pd.DataFrame) -> pd.DataFrame:
-        """設定可能な前処理"""
-        df = df.copy()
-        strategy = self.config.get("missing_strategy", "median")
-
-        # 数値列の欠損値処理
-        numeric_cols = df.select_dtypes(include=["number"]).columns
-        for col in numeric_cols:
-            if strategy == "median":
-                df[col] = df[col].fillna(df[col].median())
-            elif strategy == "mean":
-                df[col] = df[col].fillna(df[col].mean())
-
-        # カテゴリ列のエンコーディング
-        encoding_method = self.config.get("encoding_method", "label")
-        categorical_cols = ["Stage_fear", "Drained_after_socializing"]
-
-        for col in categorical_cols:
-            if col in df.columns:
-                if encoding_method == "label":
-                    df[f"{col}_encoded"] = (df[col] == "Yes").astype(int)
-
-        return df
-
-    def engineer_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """特徴量エンジニアリング"""
-        df = df.copy()
-        features = self.config.get("features", ["basic"])
-
-        if "basic" in features:
-            df = self._basic_features(df)
-        if "interaction" in features:
-            df = self._interaction_features(df)
-
-        return df
-
-    def _basic_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """基本特徴量"""
-        if "Social_event_attendance" in df.columns and "Time_spent_Alone" in df.columns:
-            df["social_ratio"] = df["Social_event_attendance"] / (df["Time_spent_Alone"] + 1)
-
-        if "Going_outside" in df.columns and "Social_event_attendance" in df.columns:
-            df["activity_sum"] = df["Going_outside"] + df["Social_event_attendance"]
-
-        return df
-
-    def _interaction_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """交互作用特徴量"""
-        # TODO: 交互作用特徴量の実装
-        return df
-
-    def close(self):
-        """接続終了"""
-        if self.conn:
-            self.conn.close()
-            self.conn = None
+DB_PATH = "/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb"
 
 
-class FeatureStore:
-    """特徴量の保存・管理"""
+def advanced_features(df: pd.DataFrame) -> pd.DataFrame:
+    """高度な特徴量エンジニアリング"""
+    df = df.copy()
+    
+    # 既存の基本特徴量
+    if "Social_event_attendance" in df.columns and "Time_spent_Alone" in df.columns:
+        df["social_ratio"] = df["Social_event_attendance"] / (df["Time_spent_Alone"] + 1)
+    
+    if "Going_outside" in df.columns and "Social_event_attendance" in df.columns:
+        df["activity_sum"] = df["Going_outside"] + df["Social_event_attendance"]
+    
+    # 新しい特徴量
+    numeric_cols = [
+        "Time_spent_Alone", "Social_event_attendance", "Going_outside", 
+        "Friends_circle_size", "Post_frequency"
+    ]
+    
+    # 統計的特徴量
+    if all(col in df.columns for col in numeric_cols):
+        df["total_activity"] = df[numeric_cols].sum(axis=1)
+        df["avg_activity"] = df[numeric_cols].mean(axis=1)
+        df["activity_std"] = df[numeric_cols].std(axis=1)
+        
+    # 比率特徴量
+    if "Friends_circle_size" in df.columns and "Post_frequency" in df.columns:
+        df["post_per_friend"] = df["Post_frequency"] / (df["Friends_circle_size"] + 1)
+        
+    # 二項交互作用
+    if "Stage_fear_encoded" in df.columns and "Drained_after_socializing_encoded" in df.columns:
+        df["fear_drain_interaction"] = df["Stage_fear_encoded"] * df["Drained_after_socializing_encoded"]
+        
+    # 外向性スコア（仮説ベース）
+    extrovert_features = []
+    if "Social_event_attendance" in df.columns:
+        extrovert_features.append("Social_event_attendance")
+    if "Going_outside" in df.columns:
+        extrovert_features.append("Going_outside")
+    if "Friends_circle_size" in df.columns:
+        extrovert_features.append("Friends_circle_size")
+        
+    if extrovert_features:
+        df["extrovert_score"] = df[extrovert_features].sum(axis=1)
+        
+    # 内向性スコア
+    if "Time_spent_Alone" in df.columns:
+        df["introvert_score"] = df["Time_spent_Alone"]
+        if "Stage_fear_encoded" in df.columns:
+            df["introvert_score"] += df["Stage_fear_encoded"] * 2
+        if "Drained_after_socializing_encoded" in df.columns:
+            df["introvert_score"] += df["Drained_after_socializing_encoded"] * 2
+            
+    return df
 
-    def __init__(self, db_path: str):
-        self.db_path = db_path
-        self.conn = None
 
-    def _connect(self):
-        """データベース接続"""
-        if self.conn is None:
-            self.conn = duckdb.connect(self.db_path)
-        return self.conn
+def scaling_features(df: pd.DataFrame) -> pd.DataFrame:
+    """特徴量スケーリング（標準化）"""
+    df = df.copy()
+    
+    # 数値特徴量を標準化
+    numeric_features = df.select_dtypes(include=[np.number]).columns
+    exclude_cols = ['id']  # IDカラムは除外
+    numeric_features = [col for col in numeric_features if col not in exclude_cols]
+    
+    for col in numeric_features:
+        if df[col].std() > 0:  # 分散が0でない場合のみ
+            df[f"{col}_scaled"] = (df[col] - df[col].mean()) / df[col].std()
+            
+    return df
 
-    def save_features(self, df: pd.DataFrame, name: str):
-        """特徴量セットの保存"""
-        self._connect()
-        # TODO: DuckDBへの保存実装
-        pass
 
-    def load_features(self, name: str) -> pd.DataFrame:
-        """特徴量セットの読み込み"""
-        self._connect()
-        # TODO: DuckDBからの読み込み実装
-        return pd.DataFrame()  # 仮の戻り値
+def create_silver_tables() -> None:
+    """silver層テーブルをDuckDBに作成"""
+    conn = duckdb.connect(DB_PATH)
+    
+    # silverスキーマ作成
+    conn.execute("CREATE SCHEMA IF NOT EXISTS silver")
+    
+    # bronzeデータ読み込み
+    try:
+        train_bronze = conn.execute("SELECT * FROM bronze.train").df()
+        test_bronze = conn.execute("SELECT * FROM bronze.test").df()
+    except Exception as e:
+        print(f"Bronze tables not found. Creating bronze tables first...")
+        from .bronze import create_bronze_tables
+        create_bronze_tables()
+        train_bronze = conn.execute("SELECT * FROM bronze.train").df()
+        test_bronze = conn.execute("SELECT * FROM bronze.test").df()
+    
+    # 特徴量エンジニアリング適用
+    train_silver = advanced_features(train_bronze)
+    test_silver = advanced_features(test_bronze)
+    
+    # スケーリング適用
+    train_silver = scaling_features(train_silver)
+    test_silver = scaling_features(test_silver)
+    
+    # silverテーブル作成・挿入
+    conn.execute("DROP TABLE IF EXISTS silver.train")
+    conn.execute("DROP TABLE IF EXISTS silver.test")
+    
+    conn.register('train_silver_df', train_silver)
+    conn.register('test_silver_df', test_silver)
+    
+    conn.execute("CREATE TABLE silver.train AS SELECT * FROM train_silver_df")
+    conn.execute("CREATE TABLE silver.test AS SELECT * FROM test_silver_df")
+    
+    print(f"Silver tables created:")
+    print(f"- silver.train: {len(train_silver)} rows, {len(train_silver.columns)} columns")
+    print(f"- silver.test: {len(test_silver)} rows, {len(test_silver.columns)} columns")
+    
+    conn.close()
 
-    def close(self):
-        """接続終了"""
-        if self.conn:
-            self.conn.close()
-            self.conn = None
+
+def load_silver_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """silver層データ読み込み"""
+    conn = duckdb.connect(DB_PATH)
+    train = conn.execute("SELECT * FROM silver.train").df()
+    test = conn.execute("SELECT * FROM silver.test").df()
+    conn.close()
+    return train, test
+
+
+def get_feature_importance_order() -> list:
+    """特徴量重要度順リスト（経験的順序）"""
+    return [
+        "extrovert_score",
+        "introvert_score", 
+        "Social_event_attendance",
+        "Time_spent_Alone",
+        "Drained_after_socializing_encoded",
+        "Stage_fear_encoded",
+        "social_ratio",
+        "Friends_circle_size",
+        "Going_outside",
+        "Post_frequency",
+        "activity_sum",
+        "post_per_friend",
+        "fear_drain_interaction",
+        "total_activity",
+        "avg_activity"
+    ]

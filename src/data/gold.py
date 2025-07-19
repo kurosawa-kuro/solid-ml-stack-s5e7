@@ -1,142 +1,143 @@
 """
 Gold Level Data Management
-Kaggle精度向上に特化した高度データ管理（不要機能削除済み）
+Model-Ready Data for ML Training
 """
 
-from typing import Tuple, Dict, List, Optional
+from typing import Tuple, List, Optional
 import pandas as pd
+import numpy as np
 import duckdb
-import pickle
-from pathlib import Path
+from sklearn.preprocessing import StandardScaler
+
+DB_PATH = "/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb"
 
 
-class DataManager:
-    """Kaggle精度向上特化データ管理システム"""
-
-    def __init__(self, config: Optional[Dict] = None):
-        self.config = config or self._default_config()
-        self.db_path = self.config["database"]["path"]
-        self.conn = None
-        self.cache_dir = Path(self.config["cache"]["directory"])
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-
-    def _connect(self):
-        """データベース接続"""
-        if self.conn is None:
-            self.conn = duckdb.connect(self.db_path)
-        return self.conn
-
-    def _default_config(self) -> Dict:
-        """デフォルト設定"""
-        return {
-            "database": {
-                "path": "/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb",
-                "schema": "playground_series_s5e7",
-            },
-            "cache": {"directory": "/tmp/ml_cache"},
-        }
-
-    def get_data(self, features: Optional[List[str]] = None, cache: bool = True) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """特徴量指定でデータ取得（キャッシュ付き）"""
-
-        features = features or ["basic"]
-        cache_key = f"data_{hash(str(sorted(features)))}"
-        cache_file = self.cache_dir / f"{cache_key}.pkl"
-
-        # キャッシュチェック
-        if cache and cache_file.exists():
-            with open(cache_file, "rb") as f:
-                return pickle.load(f)
-
-        # データ処理
-        train, test = self._process_data(features)
-
-        # キャッシュ保存
-        if cache:
-            with open(cache_file, "wb") as f:
-                pickle.dump((train, test), f)
-
-        return train, test
-
-    def _process_data(self, features: List[str]) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """特徴量ベースのデータ処理"""
-        conn = self._connect()
-        train = conn.execute("SELECT * FROM playground_series_s5e7.train").df()
-        test = conn.execute("SELECT * FROM playground_series_s5e7.test").df()
-
-        # 特徴量エンジニアリング
-        if "basic" in features:
-            train = self._add_basic_features(train)
-            test = self._add_basic_features(test)
-
-        if "advanced" in features:
-            train = self._add_advanced_features(train)
-            test = self._add_advanced_features(test)
-
-        return train, test
-
-    def _add_basic_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """基本特徴量追加"""
-        df = df.copy()
-
-        # 欠損値処理
-        numeric_cols = [
-            "Time_spent_Alone",
-            "Social_event_attendance",
-            "Going_outside",
-            "Friends_circle_size",
-            "Post_frequency",
+def prepare_model_data(df: pd.DataFrame, target_col: str = None, feature_cols: List[str] = None) -> pd.DataFrame:
+    """モデル学習用データ準備"""
+    df = df.copy()
+    
+    # 特徴量選択
+    if feature_cols is None:
+        # デフォルト特徴量セット
+        feature_cols = [
+            'extrovert_score', 'introvert_score', 'Social_event_attendance',
+            'Time_spent_Alone', 'Drained_after_socializing_encoded',
+            'Stage_fear_encoded', 'social_ratio', 'Friends_circle_size',
+            'Going_outside', 'Post_frequency'
         ]
-        for col in numeric_cols:
-            if col in df.columns:
-                df[col] = df[col].fillna(df[col].median())
+    
+    # 使用可能な特徴量のみ選択
+    available_features = [col for col in feature_cols if col in df.columns]
+    
+    # 基本カラム追加
+    model_cols = ['id'] if 'id' in df.columns else []
+    if target_col and target_col in df.columns:
+        model_cols.append(target_col)
+        # エンコードされたターゲットも追加
+        encoded_target = f'{target_col}_encoded'
+        if encoded_target in df.columns:
+            model_cols.append(encoded_target)
+    model_cols.extend(available_features)
+    
+    return df[model_cols]
 
-        # カテゴリエンコーディング
-        if "Stage_fear" in df.columns:
-            df["Stage_fear_encoded"] = (df["Stage_fear"] == "Yes").astype(int)
-        if "Drained_after_socializing" in df.columns:
-            df["Drained_after_socializing_encoded"] = (df["Drained_after_socializing"] == "Yes").astype(int)
 
-        # 基本特徴量
-        if "Social_event_attendance" in df.columns and "Time_spent_Alone" in df.columns:
-            df["social_ratio"] = df["Social_event_attendance"] / (df["Time_spent_Alone"] + 1)
+def encode_target(df: pd.DataFrame, target_col: str = 'Personality') -> pd.DataFrame:
+    """ターゲット変数エンコーディング"""
+    df = df.copy()
+    if target_col in df.columns:
+        df[f'{target_col}_encoded'] = (df[target_col] == 'Extrovert').astype(int)
+    return df
 
-        if "Going_outside" in df.columns and "Social_event_attendance" in df.columns:
-            df["activity_sum"] = df["Going_outside"] + df["Social_event_attendance"]
 
-        return df
+def create_gold_tables() -> None:
+    """gold層テーブルをDuckDBに作成"""
+    conn = duckdb.connect(DB_PATH)
+    
+    # goldスキーマ作成
+    conn.execute("CREATE SCHEMA IF NOT EXISTS gold")
+    
+    # silverデータ読み込み
+    try:
+        train_silver = conn.execute("SELECT * FROM silver.train").df()
+        test_silver = conn.execute("SELECT * FROM silver.test").df()
+    except Exception:
+        print("Silver tables not found. Creating silver tables first...")
+        from .silver import create_silver_tables
+        create_silver_tables()
+        train_silver = conn.execute("SELECT * FROM silver.train").df()
+        test_silver = conn.execute("SELECT * FROM silver.test").df()
+    
+    # ターゲットエンコーディング
+    train_gold = encode_target(train_silver)
+    test_gold = test_silver.copy()
+    
+    # モデル用データ準備（エンコード後に特徴量選択）
+    train_gold = prepare_model_data(train_gold, target_col='Personality')
+    test_gold = prepare_model_data(test_gold)
+    
+    # goldテーブル作成・挿入
+    conn.execute("DROP TABLE IF EXISTS gold.train")
+    conn.execute("DROP TABLE IF EXISTS gold.test")
+    
+    conn.register('train_gold_df', train_gold)
+    conn.register('test_gold_df', test_gold)
+    
+    conn.execute("CREATE TABLE gold.train AS SELECT * FROM train_gold_df")
+    conn.execute("CREATE TABLE gold.test AS SELECT * FROM test_gold_df")
+    
+    print(f"Gold tables created:")
+    print(f"- gold.train: {len(train_gold)} rows, {len(train_gold.columns)} columns")
+    print(f"- gold.test: {len(test_gold)} rows, {len(test_gold.columns)} columns")
+    
+    conn.close()
 
-    def _add_advanced_features(self, df: pd.DataFrame) -> pd.DataFrame:
-        """高度特徴量追加"""
-        df = df.copy()
 
-        # 交互作用特徴量
-        if "Stage_fear_encoded" in df.columns and "Drained_after_socializing_encoded" in df.columns:
-            df["fear_drained_interaction"] = df["Stage_fear_encoded"] * df["Drained_after_socializing_encoded"]
+def load_gold_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """gold層データ読み込み"""
+    conn = duckdb.connect(DB_PATH)
+    train = conn.execute("SELECT * FROM gold.train").df()
+    test = conn.execute("SELECT * FROM gold.test").df()
+    conn.close()
+    return train, test
 
-        # 統計特徴量
-        numeric_cols = [
-            "Time_spent_Alone",
-            "Social_event_attendance",
-            "Going_outside",
-            "Friends_circle_size",
-            "Post_frequency",
-        ]
-        existing_cols = [col for col in numeric_cols if col in df.columns]
 
-        if len(existing_cols) >= 2:
-            df["numeric_mean"] = df[existing_cols].mean(axis=1)
-            df["numeric_std"] = df[existing_cols].std(axis=1)
+def get_ml_ready_data(scale_features: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """機械学習用データ準備（X, y分割）"""
+    train, test = load_gold_data()
+    
+    # 特徴量とターゲット分離
+    feature_cols = [col for col in train.columns if col not in ['id', 'Personality', 'Personality_encoded']]
+    
+    X_train = train[feature_cols].values
+    y_train = train['Personality_encoded'].values if 'Personality_encoded' in train.columns else None
+    X_test = test[feature_cols].values
+    test_ids = test['id'].values if 'id' in test.columns else None
+    
+    # スケーリング
+    if scale_features:
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_test = scaler.transform(X_test)
+    
+    return X_train, y_train, X_test, test_ids
 
-        return df
 
-    def clear_cache(self):
-        """キャッシュクリア"""
-        for cache_file in self.cache_dir.glob("*.pkl"):
-            cache_file.unlink()
+def create_submission(predictions: np.ndarray, filename: str = 'submission.csv') -> None:
+    """提出ファイル作成"""
+    _, test = load_gold_data()
+    
+    submission = pd.DataFrame({
+        'id': test['id'],
+        'Personality': ['Extrovert' if pred == 1 else 'Introvert' for pred in predictions]
+    })
+    
+    submission.to_csv(filename, index=False)
+    print(f"Submission file created: {filename}")
+    print(f"Predictions: {submission['Personality'].value_counts()}")
 
-    def close(self):
-        """接続終了"""
-        if self.conn:
-            self.conn.close()
-            self.conn = None
+
+def get_feature_names() -> List[str]:
+    """使用特徴量名取得"""
+    train, _ = load_gold_data()
+    return [col for col in train.columns if col not in ['id', 'Personality', 'Personality_encoded']]

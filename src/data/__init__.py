@@ -1,103 +1,76 @@
 """
-段階的データ管理パターン統合インターフェース
-Bronze/Silver/Gold レベルを選択可能
+Medallion Architecture Data Management
+Bronze/Silver/Gold Data Pipeline
 """
 
 from typing import Tuple
 import pandas as pd
 
-from .bronze import load_data as bronze_load, quick_preprocess, basic_features
-from .silver import DataPipeline, FeatureStore
-from .gold import DataManager
+from .bronze import (
+    load_data as bronze_load_data,
+    create_bronze_tables,
+    load_bronze_data,
+    quick_preprocess,
+    basic_features
+)
+from .silver import (
+    create_silver_tables,
+    load_silver_data,
+    advanced_features,
+    scaling_features
+)
+from .gold import (
+    create_gold_tables,
+    load_gold_data,
+    get_ml_ready_data,
+    create_submission,
+    get_feature_names
+)
 
 
-def get_data_loader(level: str = "bronze", **kwargs):
-    """レベル選択可能なデータローダー
-
-    Args:
-        level: "bronze", "silver", "gold" のいずれか
-        **kwargs: 各レベル固有の引数
-
-    Returns:
-        選択されたレベルのデータローダー
-    """
-
-    if level == "bronze":
-        return {"load": bronze_load, "preprocess": quick_preprocess, "features": basic_features}
-    elif level == "silver":
-        return DataPipeline(**kwargs)
-    elif level == "gold":
-        return DataManager(**kwargs)
-    else:
-        raise ValueError(f"Unsupported level: {level}. Choose from 'bronze', 'silver', 'gold'")
+def create_all_tables() -> None:
+    """全てのmedallionテーブルを作成"""
+    print("Creating medallion architecture tables...")
+    create_bronze_tables()
+    create_silver_tables()
+    create_gold_tables()
+    print("All medallion tables created successfully!")
 
 
-def quick_start(level: str = "bronze", **kwargs) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def quick_start(level: str = "bronze") -> Tuple[pd.DataFrame, pd.DataFrame]:
     """レベル別クイックスタート
 
     Args:
         level: "bronze", "silver", "gold" のいずれか
-        **kwargs: 各レベル固有の引数
 
     Returns:
-        (train_df, test_df): 前処理済みデータフレーム
+        (train_df, test_df): 各レベルのデータフレーム
     """
-
     if level == "bronze":
-        # Bronze: 最速開始
-        train, test = bronze_load()
-        train = quick_preprocess(train)
-        train = basic_features(train)
-        test = quick_preprocess(test)
-        test = basic_features(test)
-        return train, test
-
+        return load_bronze_data()
     elif level == "silver":
-        # Silver: 構造化パイプライン
-        config = kwargs.get("config", {})
-        db_path = kwargs.get("db_path", "/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb")
-
-        pipeline = DataPipeline(db_path, config)
-        try:
-            train, test = pipeline.load_raw()
-            train = pipeline.preprocess(train)
-            train = pipeline.engineer_features(train)
-            test = pipeline.preprocess(test)
-            test = pipeline.engineer_features(test)
-            return train, test
-        finally:
-            pipeline.close()
-
+        return load_silver_data()
     elif level == "gold":
-        # Gold: 精度向上特化
-        config = kwargs.get("config")
-        features = kwargs.get("features", ["basic"])
-
-        manager = DataManager(config)
-        try:
-            return manager.get_data(features=features)
-        finally:
-            manager.close()
-
+        return load_gold_data()
     else:
         raise ValueError(f"Unsupported level: {level}. Choose from 'bronze', 'silver', 'gold'")
 
 
-# 便利なエイリアス
-Bronze = bronze_load
-Silver = DataPipeline
-Gold = DataManager
-
 __all__ = [
-    "get_data_loader",
+    "create_all_tables",
     "quick_start",
-    "Bronze",
-    "Silver",
-    "Gold",
-    "bronze_load",
+    "create_bronze_tables",
+    "create_silver_tables", 
+    "create_gold_tables",
+    "load_bronze_data",
+    "load_silver_data",
+    "load_gold_data",
+    "get_ml_ready_data",
+    "create_submission",
+    "get_feature_names",
+    "bronze_load_data",
     "quick_preprocess",
     "basic_features",
-    "DataPipeline",
-    "FeatureStore",
-    "DataManager",
+    "advanced_features",
+    "scaling_features"
 ]

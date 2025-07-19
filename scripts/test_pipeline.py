@@ -7,8 +7,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from src.data.bronze import load_data
-from src.data.silver import DataPipeline
-from src.data.gold import DataManager
+from src.data.silver import load_silver_data, create_silver_tables
 
 def main():
     print("🔄 Testing Bronze → Silver → Gold Pipeline")
@@ -21,32 +20,32 @@ def main():
     print(f"✅ Test shape: {test_raw.shape}")
     print(f"✅ Columns: {list(train_raw.columns)}")
     
-    # Silver: Basic preprocessing
-    print("\n⚙️  SILVER: Basic preprocessing...")
-    db_path = os.getenv('DB_PATH', '/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb')
-    pipeline = DataPipeline(db_path)
-    train_clean = pipeline.preprocess(train_raw)
-    test_clean = pipeline.preprocess(test_raw)
-    print(f"✅ Train clean shape: {train_clean.shape}")
-    print(f"✅ Test clean shape: {test_clean.shape}")
-    print(f"✅ Dtypes: {dict(train_clean.dtypes)}")
+    # Silver: Create silver tables
+    print("\n⚙️  SILVER: Creating silver tables...")
+    create_silver_tables()
+    train_silver, test_silver = load_silver_data()
+    print(f"✅ Train silver shape: {train_silver.shape}")
+    print(f"✅ Test silver shape: {test_silver.shape}")
+    print(f"✅ Dtypes: {dict(train_silver.dtypes)}")
     
     # Gold: Feature engineering  
     print("\n✨ GOLD: Feature engineering...")
-    dm = DataManager()
-    X_train, X_test = dm.get_data()
-    y_train = train_clean['Personality']
+    # TODO: Implement gold layer
+    X_train = train_silver.drop('Personality', axis=1, errors='ignore')
+    X_test = test_silver
+    y_train = train_silver['Personality'] if 'Personality' in train_silver.columns else None
     print(f"✅ X_train shape: {X_train.shape}")
-    print(f"✅ y_train shape: {y_train.shape}")
+    print(f"✅ y_train shape: {y_train.shape if y_train is not None else 'None'}")
     print(f"✅ X_test shape: {X_test.shape}")
     print(f"✅ Feature columns: {list(X_train.columns)}")
     
     # Summary
     print("\n📊 PIPELINE SUMMARY")
     print("=" * 50)
-    print(f"Raw → Clean: {train_raw.shape} → {train_clean.shape}")
-    print(f"Clean → Features: {train_clean.shape} → {X_train.shape}")
-    print(f"Target distribution: {y_train.value_counts().to_dict()}")
+    print(f"Raw → Silver: {train_raw.shape} → {train_silver.shape}")
+    print(f"Silver → Features: {train_silver.shape} → {X_train.shape}")
+    if y_train is not None:
+        print(f"Target distribution: {y_train.value_counts().to_dict()}")
     print("\n✅ Pipeline test completed successfully!")
 
 if __name__ == "__main__":
