@@ -44,6 +44,53 @@ Implemented Structure:
 └── tests/                # ✅ 73% coverage, 475 tests
 ```
 
+### Medallion Data Processing Layers
+
+#### Bronze Layer (`src/data/bronze.py`) - Raw Data Processing
+**Purpose**: Raw data ingestion and basic preprocessing
+**Core Functions**:
+- `load_data()`: DuckDB direct data loading
+- `quick_preprocess()`: Minimal preprocessing (missing values, categorical encoding)
+- `basic_features()`: Simple ratio and sum features
+- `create_bronze_tables()`: Creates bronze schema in DuckDB
+
+**Key Features**:
+- Fast prototyping support (sub-second processing)
+- Basic missing value handling (median imputation)
+- Categorical encoding (Yes/No → 1/0)
+- Simple feature generation (social_ratio, activity_sum)
+
+#### Silver Layer (`src/data/silver.py`) - Feature Engineering
+**Purpose**: Advanced feature engineering and transformation
+**Core Functions**:
+- `advanced_features()`: 15+ statistical and domain features
+- `enhanced_interaction_features()`: Top feature interactions
+- `polynomial_features()`: Degree-2 polynomial expansion
+- `scaling_features()`: Feature standardization
+
+**Key Features**:
+- **30+ engineered features** including:
+  - Domain features: `extrovert_score`, `introvert_score`
+  - Statistical features: `total_activity`, `avg_activity`, `activity_std`
+  - Interaction features: `extrovert_social_interaction`, `fear_drain_interaction`
+  - Polynomial features: degree-2 combinations of top features
+- **Feature importance ordering** for systematic experimentation
+- **Robust pipeline** with error handling and validation
+
+#### Gold Layer (`src/data/gold.py`) - ML-Ready Data
+**Purpose**: Production-ready ML data preparation
+**Core Functions**:
+- `clean_and_validate_features()`: Data quality assurance
+- `select_best_features()`: Statistical feature selection (F-test + MI)
+- `prepare_model_data()`: Final ML data preparation
+- `get_ml_ready_data()`: X/y split with optional scaling
+
+**Key Features**:
+- **Advanced data cleaning**: Outlier handling, infinite value processing
+- **Intelligent feature selection**: Combined F-statistics and mutual information
+- **ML pipeline integration**: sklearn-compatible data preparation
+- **Production utilities**: Submission file creation, array extraction
+
 ### Current Development Strategy
 1. **Bronze Optimization** (Active): Hyperparameter tuning, feature selection → 0.976518
 2. **Silver Expansion** (Ready): XGBoost/CatBoost ensemble, advanced features
