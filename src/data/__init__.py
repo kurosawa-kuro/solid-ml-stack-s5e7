@@ -11,21 +11,10 @@ from .bronze import (
     create_bronze_tables,
     load_bronze_data,
     quick_preprocess,
-    basic_features
+    basic_features,
 )
-from .silver import (
-    create_silver_tables,
-    load_silver_data,
-    advanced_features,
-    scaling_features
-)
-from .gold import (
-    create_gold_tables,
-    load_gold_data,
-    get_ml_ready_data,
-    create_submission,
-    get_feature_names
-)
+from .silver import create_silver_tables, load_silver_data, advanced_features, scaling_features
+from .gold import create_gold_tables, load_gold_data, get_ml_ready_data, create_submission, get_feature_names
 
 
 def create_all_tables() -> None:
@@ -60,7 +49,7 @@ __all__ = [
     "create_all_tables",
     "quick_start",
     "create_bronze_tables",
-    "create_silver_tables", 
+    "create_silver_tables",
     "create_gold_tables",
     "load_bronze_data",
     "load_silver_data",
@@ -72,5 +61,5 @@ __all__ = [
     "quick_preprocess",
     "basic_features",
     "advanced_features",
-    "scaling_features"
+    "scaling_features",
 ]
