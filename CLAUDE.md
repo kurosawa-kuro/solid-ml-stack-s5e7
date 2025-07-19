@@ -47,18 +47,39 @@ Implemented Structure:
 ### Medallion Data Processing Layers
 
 #### Bronze Layer (`src/data/bronze.py`) - Raw Data Processing
-**Purpose**: Raw data ingestion and basic preprocessing
+**Purpose**: Raw data ingestion and **competition-grade preprocessing** with leak prevention
 **Core Functions**:
-- `load_data()`: DuckDB direct data loading
-- `quick_preprocess()`: Minimal preprocessing (missing values, categorical encoding)
-- `basic_features()`: Simple ratio and sum features
-- `create_bronze_tables()`: Creates bronze schema in DuckDB
+- `load_data()`: DuckDB direct data loading with dtype validation
+- `validate_data_quality()`: Column type & value range validation (non-negative time, realistic limits)
+- `advanced_missing_strategy()`: Multi-approach missing value handling (flags, imputation, model-based)
+- `encode_categorical_robust()`: Yes/No normalization with order-aware mapping
+- `create_missing_indicators()`: Generate missing flags for high-impact features
+- `winsorize_outliers()`: IQR-based outlier clipping for numeric stability
+- `create_bronze_tables()`: Creates bronze schema with preprocessing metadata
+
+**Advanced Missing Value Strategy** (上位勢手法):
+1. **Missing Flags** (Stage_fear ~10%, Going_outside ~8%): Binary indicators for missing data
+2. **Cross-Feature Imputation**: Use high correlation (多重共線性) to predict missing values
+3. **Model-Specific Handling**: Keep NaN for tree models, impute for linear models
+4. **Fold-Safe Processing**: All statistics computed within CV folds only
+
+**Data Quality Pipeline** (必須ステップ):
+- **Type Validation**: Explicit dtype setting (int/float/bool/category)
+- **Range Guards**: Time_spent_Alone ≤ 24hrs, non-negative behavioral metrics  
+- **Missing Pattern Analysis**: Identify systematic vs random missing
+- **Categorical Standardization**: Unified Yes/No mapping with case handling
+
+**Leak Prevention Architecture**:
+- **Stratified K-Fold**: Maintain Introvert/Extrovert ratio across folds
+- **Within-Fold Statistics**: Imputation values, encodings computed per fold
+- **Pipeline Integration**: sklearn-compatible transformers for cross-validation
 
 **Key Features**:
-- Fast prototyping support (sub-second processing)
-- Basic missing value handling (median imputation)
-- Categorical encoding (Yes/No → 1/0)
-- Simple feature generation (social_ratio, activity_sum)
+- **Competition-Grade Processing**: Implements top-tier Kaggle preprocessing patterns
+- **Missing Intelligence**: Leverages missing patterns as prediction signals
+- **Model Compatibility**: Dual preprocessing paths (tree vs linear models)
+- **Quality Assurance**: Comprehensive validation preventing data corruption
+- **Fast Prototyping**: Sub-second processing maintained despite advanced features
 
 #### Silver Layer (`src/data/silver.py`) - Feature Engineering
 **Purpose**: Advanced feature engineering and transformation
@@ -198,6 +219,26 @@ pip install -e .[visualization]    # + plotting libraries
 4. **Test Comprehensively**: 73% coverage with integration tests (implemented)
 5. **Scale Thoughtfully**: Medallion architecture supports controlled expansion
 
+### Bronze Layer Implementation Checklist (上位勢パターン)
+**必須ステップ (実装優先)**:
+- [ ] データ読込時dtype明示設定 (int/float/bool/category)
+- [ ] 値域バリデーション (Time_spent_Alone ≤ 24hrs, 非負チェック)
+- [ ] Yes/No正規化辞書 (大文字小文字統一 → {0,1})
+- [ ] 欠損フラグ生成 (Stage_fear, Going_outside, Drained_after_socializing)
+- [ ] Fold内統計量計算 (CV内でimputation値・エンコーディング学習)
+- [ ] Stratified K-Fold設定 (クラス比率維持)
+
+**強推奨ステップ (性能向上)**:
+- [ ] 外れ値Winsorizing (IQR基準, 1%/99%分位数クリップ)
+- [ ] モデル別前処理パイプライン (Tree:NaN保持, Linear:補完)
+- [ ] 交差特徴補完 (高相関利用した欠損値推定)
+- [ ] カテゴリエンコーディング多様化 (頻度/ターゲット統計)
+
+**実験ステップ (微差稼ぎ)**:
+- [ ] 比率特徴 (Time_spent_Alone/(Time_spent_Alone+Social_event_attendance))
+- [ ] RankGauss変換 (歪度大きい特徴の正規化)
+- [ ] ターゲットエンコーディング+ノイズ (高カテゴリ時)
+
 ## 【SUCCESS CRITERIA】
 - **Bronze Medal**: 0.976518+ accuracy (+0.8% from current 0.9684)
 - **Architecture Quality**: Extensible design with controlled complexity
@@ -207,10 +248,27 @@ pip install -e .[visualization]    # + plotting libraries
 
 ## 【BRONZE MEDAL ROADMAP】
 ### Immediate Opportunities (1-2 weeks)
-1. **Hyperparameter Optimization**: Leverage existing Optuna integration
-2. **Feature Selection**: Focus on top importance features (poly_extrovert_score_*)
-3. **Model Ensemble**: Combine CV folds for prediction stability
-4. **Threshold Tuning**: Optimize classification threshold for accuracy
+1. **Advanced Bronze Layer** (High Priority +0.3-0.5% expected):
+   - Missing indicators for Stage_fear, Going_outside (上位勢実証済み)
+   - Cross-feature imputation using high correlation patterns
+   - Winsorizing outliers (IQR-based) for numeric stability
+   - Model-specific preprocessing pipelines (tree vs linear)
+
+2. **Hyperparameter Optimization**: Leverage existing Optuna integration (+0.2-0.4%)
+
+3. **Enhanced Data Quality** (Medium Priority +0.1-0.3%):
+   - Dtype validation with range guards (Time_spent_Alone ≤ 24hrs)
+   - Categorical standardization (case-insensitive Yes/No mapping)
+   - Missing pattern analysis for systematic vs random detection
+
+4. **CV Framework Enhancement** (+0.1-0.2%):
+   - Stratified K-Fold with explicit Introvert/Extrovert ratio maintenance
+   - Fold-safe statistics computation preventing information leakage
+   - Pipeline integration ensuring consistent train/validation processing
+
+5. **Feature Selection**: Focus on top importance features (poly_extrovert_score_*)
+6. **Model Ensemble**: Combine CV folds for prediction stability
+7. **Threshold Tuning**: Optimize classification threshold for accuracy
 
 ### Technical Assets Ready
 - ✅ **Data Leak Prevention**: Pipeline integration implemented
