@@ -117,7 +117,8 @@ def select_best_features(df: pd.DataFrame, target_col: str, k: int = 30) -> List
 
 
 def prepare_model_data(
-    df: pd.DataFrame, target_col: str = None, feature_cols: List[str] = None, auto_select: bool = True
+    df: pd.DataFrame, target_col: str = None, feature_cols: List[str] = None, 
+    auto_select: bool = True, model_type: str = "lightgbm"
 ) -> pd.DataFrame:
     """改良されたモデル学習用データ準備"""
     df = df.copy()
@@ -254,25 +255,32 @@ def load_gold_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     return train, test
 
 
-def get_ml_ready_data(scale_features: bool = False) -> Tuple[Any, Optional[Any], Any, Optional[Any]]:
-    """機械学習用データ準備（X, y分割）"""
-    train, test = load_gold_data()
-
-    # 特徴量とターゲット分離
-    feature_cols = [col for col in train.columns if col not in ["id", "Personality", "Personality_encoded"]]
-
-    X_train = train[feature_cols].values
-    y_train = train["Personality_encoded"].values if "Personality_encoded" in train.columns else None
-    X_test = test[feature_cols].values
-    test_ids = test["id"].values if "id" in test.columns else None
-
-    # スケーリング
+def get_ml_ready_data(df: pd.DataFrame, target_col: str = "Personality", scale_features: bool = False) -> Tuple[pd.DataFrame, pd.Series]:
+    """Get ML-ready data with target separation"""
+    # Prepare model data
+    model_data = prepare_model_data(df, target_col=target_col)
+    
+    # Encode target
+    model_data = encode_target(model_data, target_col)
+    
+    # Extract features and target
+    feature_cols = [col for col in model_data.columns 
+                   if col not in ["id", target_col, f"{target_col}_encoded"]]
+    
+    X = model_data[feature_cols]
+    y = model_data[f"{target_col}_encoded"]
+    
+    # Scale features if requested
     if scale_features:
         scaler = StandardScaler()
-        X_train = scaler.fit_transform(X_train)
-        X_test = scaler.transform(X_test)
-
-    return X_train, y_train, X_test, test_ids
+        X_scaled = pd.DataFrame(
+            scaler.fit_transform(X),
+            columns=X.columns,
+            index=X.index
+        )
+        return X_scaled, y
+    
+    return X, y
 
 
 def create_submission_format(predictions: np.ndarray, filename: str = "submission.csv") -> None:
@@ -288,15 +296,26 @@ def create_submission_format(predictions: np.ndarray, filename: str = "submissio
     print(f"Predictions: {submission['Personality'].value_counts()}")
 
 
-def create_submission(predictions: np.ndarray, filename: str = "submission.csv") -> None:
-    """Legacy wrapper for create_submission_format"""
-    create_submission_format(predictions, filename)
+def create_submission(df: pd.DataFrame, predictions: np.ndarray, filename: str = "submission.csv") -> pd.DataFrame:
+    """Create submission format DataFrame"""
+    # Ensure predictions match DataFrame length
+    if len(predictions) != len(df):
+        raise ValueError(f"Predictions length {len(predictions)} does not match DataFrame length {len(df)}")
+    
+    # Create submission DataFrame
+    submission = pd.DataFrame({
+        'id': df['id'] if 'id' in df.columns else range(len(df)),
+        'Personality': ['Extrovert' if pred > 0.5 else 'Introvert' for pred in predictions]
+    })
+    
+    return submission
 
 
-def get_feature_names() -> List[str]:
-    """使用特徴量名取得"""
-    train, _ = load_gold_data()
-    return [col for col in train.columns if col not in ["id", "Personality", "Personality_encoded"]]
+def get_feature_names(df: pd.DataFrame) -> List[str]:
+    """Get feature names excluding ID and target columns"""
+    exclude_cols = ["id", "Personality", "Personality_encoded"]
+    feature_names = [col for col in df.columns if col not in exclude_cols]
+    return feature_names
 
 
 def extract_model_arrays(df: pd.DataFrame, target_col: str = "Personality") -> Tuple[np.ndarray, np.ndarray, List[str]]:

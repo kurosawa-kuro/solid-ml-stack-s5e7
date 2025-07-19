@@ -12,22 +12,22 @@ import pandas as pd
 import pytest
 from sklearn.datasets import make_classification
 from sklearn.metrics import accuracy_score, roc_auc_score
-from unittest.mock import patch
+from unittest.mock import patch, Mock
 
 # Implementation-dependent imports - only when implemented
-# from src.models import (
-#     CrossValidationTrainer,
-#     LightGBMModel, 
-#     OptunaOptimizer,
-#     LIGHTGBM_PARAMS,
-#     create_learning_curve_data,
-#     create_optimized_model,
-#     evaluate_model_metrics,
-#     load_model_with_metadata,
-#     optimize_lightgbm_hyperparams,
-#     save_model_with_metadata,
-# )
-# from src.validation import CVStrategy
+from src.models import (
+    CrossValidationTrainer,
+    LightGBMModel, 
+    OptunaOptimizer,
+    LIGHTGBM_PARAMS,
+    create_learning_curve_data,
+    create_optimized_model,
+    evaluate_model_metrics,
+    load_model_with_metadata,
+    optimize_lightgbm_hyperparams,
+    save_model_with_metadata,
+)
+from src.validation import CVStrategy
 
 
 class TestLightGBMModelFull:
@@ -186,10 +186,10 @@ class TestCrossValidationTrainerFull:
         """Test CV trainer with custom strategy"""
         from src.validation import CVStrategy
 
-        custom_strategy = CVStrategy(n_splits=3, shuffle=False)
+        custom_strategy = CVStrategy(n_splits=3, shuffle=True, random_state=42)
         trainer = CrossValidationTrainer(cv_strategy=custom_strategy)
         assert trainer.cv_strategy.n_splits == 3
-        assert not trainer.cv_strategy.shuffle
+        assert trainer.cv_strategy.shuffle
 
     def test_train_cv_basic(self):
         """Test basic cross-validation training"""

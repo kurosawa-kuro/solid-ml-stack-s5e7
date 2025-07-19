@@ -7,10 +7,13 @@ import tempfile
 import numpy as np
 import pandas as pd
 import pytest
+import joblib
 from unittest.mock import patch
 
 # Use real scikit-learn for evaluation metrics
 from sklearn.metrics import accuracy_score, roc_auc_score
+
+from src.models import LightGBMModel
 
 
 class TestLightGBMModel:
@@ -56,9 +59,9 @@ class TestLightGBMModel:
         y_train = np.random.RandomState(42).randint(0, 2, 100)
         
         # LightGBMModel実装後に有効化
-        # model = LightGBMModel()
-        # model.fit(X_train, y_train)
-        # assert model.is_fitted
+        model = LightGBMModel()
+        model.fit(X_train, y_train)
+        assert model.is_fitted
         
         # 現在は基本的な検証のみ
         assert X_train.shape == (100, 5)
@@ -284,26 +287,24 @@ class TestModelPersistence:
     def test_model_save_load_cycle(self):
         """モデル保存・読み込みサイクルのテスト"""
         with tempfile.TemporaryDirectory() as temp_dir:
-            # ダミーモデルとメタデータ
-            model_data = {
-                "model": "dummy_lgb_model",
-                "params": {"learning_rate": 0.1, "num_leaves": 31},
-                "feature_names": ["f1", "f2", "f3"],
-                "cv_score": 0.975,
-                "timestamp": "2024-01-01T12: 00: 00",
-            }
-
+            # 実際のLightGBMModelを使用
+            model = LightGBMModel()
+            X_train = np.random.RandomState(42).random((100, 5))
+            y_train = np.random.RandomState(42).randint(0, 2, 100)
+            
+            # モデルを学習
+            model.fit(X_train, y_train)
+            
             model_path = os.path.join(temp_dir, "model.pkl")
 
             # 保存
-            joblib.dump(model_data, model_path)
+            model.save(model_path)
 
             # 読み込み
-            loaded_data = joblib.load(model_path)
+            loaded_model = LightGBMModel.load(model_path)
 
-            assert loaded_data["params"]["learning_rate"] == 0.1
-            assert loaded_data["cv_score"] == 0.975
-            assert len(loaded_data["feature_names"]) == 3
+            assert loaded_model.is_fitted
+            assert loaded_model.params == model.params
 
     def test_model_metadata_structure(self):
         """モデルメタデータ構造のテスト"""

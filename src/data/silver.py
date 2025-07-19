@@ -271,8 +271,8 @@ def scaling_features(df: pd.DataFrame) -> pd.DataFrame:
     """特徴量スケーリング（標準化）"""
     df = df.copy()
 
-    # 数値特徴量を標準化
-    numeric_features = df.select_dtypes(include=[np.number]).columns
+    # 数値特徴量を標準化（boolean型も含む）
+    numeric_features = df.select_dtypes(include=[np.number, bool]).columns
     exclude_cols = ["id"]  # IDカラムは除外
     numeric_features = [col for col in numeric_features if col not in exclude_cols]
 

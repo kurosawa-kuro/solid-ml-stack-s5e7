@@ -12,7 +12,6 @@ import numpy as np
 from sklearn.model_selection import StratifiedKFold
 
 from src.data.bronze import (
-    basic_features, 
     load_data, 
     quick_preprocess,
     validate_data_quality,
@@ -66,17 +65,22 @@ class TestBronzeData:
         assert "Stage_fear_encoded" in result.columns
         assert "Drained_after_socializing_encoded" in result.columns
 
-    def test_basic_features(self, sample_bronze_data):
-        """Test basic feature engineering using common test data"""
-        result = basic_features(sample_bronze_data)
+    def test_bronze_data_quality_only(self, sample_bronze_data):
+        """Test that Bronze layer only handles data quality, not feature engineering"""
+        result = quick_preprocess(sample_bronze_data)
 
         # Use common assertions
         assert_no_data_loss(sample_bronze_data, result)
-        assert_feature_engineering_quality(result, min_new_features=2)
+        assert_data_quality(result)
         
-        # Specific assertions
-        assert "social_ratio" in result.columns
-        assert "activity_sum" in result.columns
+        # Bronze layer should only add data quality features, not engineered features
+        quality_features = [col for col in result.columns if col.endswith("_encoded") or col.endswith("_missing")]
+        assert len(quality_features) > 0, "Bronze layer should add data quality features"
+        
+        # Should not have engineered features (those belong in Silver layer)
+        engineered_features = [col for col in result.columns if any(keyword in col.lower() 
+                           for keyword in ['ratio', 'sum', 'score', 'interaction'])]
+        assert len(engineered_features) == 0, "Bronze layer should not contain engineered features"
 
     def test_quick_preprocess_missing_columns(self):
         """Test preprocessing with missing columns"""
@@ -87,10 +91,10 @@ class TestBronzeData:
         assert len(result) == 3
         assert "other_column" in result.columns
 
-    def test_basic_features_missing_columns(self):
-        """Test feature engineering with missing columns"""
+    def test_bronze_data_quality_missing_columns(self):
+        """Test data quality processing with missing columns"""
         df = pd.DataFrame({"other_column": [1, 2, 3]})
-        result = basic_features(df)
+        result = quick_preprocess(df)
 
         # Should not fail and return original data
         assert len(result) == 3
@@ -391,50 +395,40 @@ class TestBronzePerformance:
         assert result_encode["Stage_fear"].iloc[1] == result_encode["Stage_fear"].iloc[3]  # "NO" == "no" 
 
 
-class TestBronzeWinnerSolutionFeatures:
-    """Test Winner Solution features specified in CLAUDE.md"""
-    
-    def test_social_event_participation_rate(self, sample_bronze_data):
-        """Test Social_event_participation_rate feature (+0.2-0.4% proven impact)"""
-        result = basic_features(sample_bronze_data)
-        
-        # Use common assertions
-        assert_no_data_loss(sample_bronze_data, result)
-        assert_data_quality(result)
-        
-        # Test Winner Solution feature
-        if 'social_participation_rate' in result.columns:
-            feature_values = result['social_participation_rate']
-            assert not feature_values.isna().all(), "Feature has all NaN values"
-            assert feature_values.std() > 0, "Feature has no variance"
-            # Should be non-negative ratio (can exceed 1.0 when social events > going outside)
-            assert feature_values.min() >= 0, "Feature has negative values"
-            assert feature_values.max() <= 10, "Feature has unreasonably high values"
+class TestBronzeDataQualityOnly:
+    """Test that Bronze layer only handles data quality, not feature engineering"""
 
-    def test_communication_ratio_feature(self, sample_bronze_data):
-        """Test Communication_ratio feature (+0.2-0.4% proven impact)"""
-        result = basic_features(sample_bronze_data)
+    def test_no_winner_solution_features_in_bronze(self, sample_bronze_data):
+        """Test that Winner Solution features are NOT in Bronze layer"""
+        result = quick_preprocess(sample_bronze_data)
         
         # Use common assertions
         assert_no_data_loss(sample_bronze_data, result)
         assert_data_quality(result)
         
-        # Test Winner Solution feature
-        if 'communication_ratio' in result.columns:
-            feature_values = result['communication_ratio']
-            assert not feature_values.isna().all(), "Feature has all NaN values"
-            assert feature_values.std() > 0, "Feature has no variance"
+        # Bronze layer should NOT contain Winner Solution features
+        winner_features = [
+            "Social_event_participation_rate",
+            "Communication_ratio", 
+            "Friend_social_efficiency",
+            "Non_social_outings"
+        ]
+        for feature in winner_features:
+            assert feature not in result.columns, f"Winner feature {feature} should not be in Bronze layer"
 
-    def test_friend_social_efficiency(self, sample_bronze_data):
-        """Test Friend_social_efficiency feature (+0.2-0.4% proven impact)"""
-        result = basic_features(sample_bronze_data)
+    def test_bronze_only_data_quality_features(self, sample_bronze_data):
+        """Test that Bronze layer only adds data quality features"""
+        result = quick_preprocess(sample_bronze_data)
         
         # Use common assertions
         assert_no_data_loss(sample_bronze_data, result)
         assert_data_quality(result)
         
-        # Test Winner Solution feature
-        if 'friend_social_efficiency' in result.columns:
-            feature_values = result['friend_social_efficiency']
-            assert not feature_values.isna().all(), "Feature has all NaN values"
-            assert feature_values.std() > 0, "Feature has no variance" 
+        # Bronze layer should only add data quality features
+        quality_features = [col for col in result.columns if col.endswith("_encoded") or col.endswith("_missing")]
+        assert len(quality_features) > 0, "Bronze layer should add data quality features"
+        
+        # Should not have any engineered features
+        engineered_features = [col for col in result.columns if any(keyword in col.lower() 
+                           for keyword in ['ratio', 'sum', 'score', 'interaction', 'participation_rate', 'efficiency'])]
+        assert len(engineered_features) == 0, "Bronze layer should not contain any engineered features" 

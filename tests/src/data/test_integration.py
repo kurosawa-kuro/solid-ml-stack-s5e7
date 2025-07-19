@@ -1,21 +1,22 @@
 """
-Integration tests for Medallion Architecture (Bronze → Silver → Gold)
-Tests the complete data pipeline from raw data to ML-ready features
+Integration tests for Medallion Architecture
+Tests complete pipeline from Bronze to Gold layers
 """
 
-import pytest
-import pandas as pd
 import numpy as np
-from unittest.mock import patch, MagicMock
+import pandas as pd
+import pytest
+from unittest.mock import patch
 
-from src.data.bronze import load_data, create_bronze_tables
-from src.data.silver import load_silver_data, create_silver_tables
-from src.data.gold import load_gold_data, create_gold_tables, get_ml_ready_data
+from src.data.bronze import create_bronze_tables
+from src.data.silver import create_silver_tables
+from src.data.gold import create_gold_tables, get_ml_ready_data
 
+# Import common fixtures and utilities
 from tests.conftest import (
-    sample_bronze_data, sample_silver_data, sample_gold_data,
-    mock_db_connection, assert_no_data_loss, assert_data_quality,
-    assert_lightgbm_compatibility, performance_test
+    sample_bronze_data, sample_silver_data, sample_gold_data, large_test_data,
+    mock_db_connection, assert_lightgbm_compatibility, assert_data_quality, 
+    performance_test
 )
 
 
@@ -58,7 +59,7 @@ class TestMedallionIntegration:
             assert any(pattern in call for call in actual_calls), f"Missing {pattern}"
 
     @performance_test(max_time=2.0)
-    def test_end_to_end_performance(self, mock_db_connection):
+    def test_end_to_end_performance(self, mock_db_connection, sample_bronze_data, sample_silver_data, sample_gold_data):
         """Test end-to-end pipeline performance"""
         with patch('duckdb.connect', return_value=mock_db_connection.get_mock_conn()):
             # Mock all data loading functions

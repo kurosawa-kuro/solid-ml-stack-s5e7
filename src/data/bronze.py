@@ -140,6 +140,10 @@ def encode_categorical_robust(df: pd.DataFrame) -> pd.DataFrame:
             
             # Convert to float64 for LightGBM compatibility
             df[col] = df[col].astype('float64')
+            
+            # Create encoded column for compatibility
+            encoded_col = f"{col}_encoded"
+            df[encoded_col] = df[col]
     
     return df
 

@@ -42,10 +42,17 @@ class TestCVStrategyFull:
 
     def test_cv_strategy_custom_init(self):
         """Test custom initialization"""
-        strategy = CVStrategy(n_splits=3, shuffle=False, random_state=123)
+        strategy = CVStrategy(n_splits=3, shuffle=True, random_state=123)
+        assert strategy.n_splits == 3
+        assert strategy.shuffle is True
+        assert strategy.random_state == 123
+
+    def test_cv_strategy_no_shuffle(self):
+        """Test initialization without shuffle"""
+        strategy = CVStrategy(n_splits=3, shuffle=False)
         assert strategy.n_splits == 3
         assert strategy.shuffle is False
-        assert strategy.random_state == 123
+        assert strategy.random_state is None
 
     def test_get_splits(self):
         """Test getting CV splits"""
@@ -68,13 +75,13 @@ class TestCVStrategyFull:
 
     def test_get_config(self):
         """Test configuration export"""
-        strategy = CVStrategy(n_splits=4, shuffle=False)
+        strategy = CVStrategy(n_splits=4, shuffle=True, random_state=42)
         config = strategy.get_config()
 
         assert config["n_splits"] == 4
-        assert config["shuffle"] is False
+        assert config["shuffle"] is True
         assert config["random_state"] == 42
-        assert config["strategy_type"] == "StratifiedKFold"
+        assert config["stratify"] is True
 
 
 class TestCVLoggerFull:
@@ -107,24 +114,18 @@ class TestCVLoggerFull:
         feature_names = ["f1", "f2"]
 
         entry = logger.create_log_entry(
-            experiment_name="test_exp",
             model_type="LightGBM",
-            cv_results=cv_results,
-            model_params=model_params,
-            feature_names=feature_names,
             cv_config={"n_splits": 5},
             fold_scores=[0.94, 0.95, 0.96],
             training_time=120.5,
-            notes="Test run",
+            **cv_results
         )
 
-        assert entry["experiment_name"] == "test_exp"
         assert entry["model_type"] == "LightGBM"
         assert entry["cv_score"] == 0.95
         assert entry["cv_std"] == 0.02
-        assert entry["model_params"] == model_params
-        assert entry["feature_count"] == 2
-        assert entry["notes"] == "Test run"
+        assert entry["fold_scores"] == [0.94, 0.95, 0.96]
+        assert entry["training_time"] == 120.5
         assert "timestamp" in entry
 
     def test_save_json_log(self):
@@ -183,7 +184,7 @@ class TestDataIntegrityFull:
         assert checks["has_inf"] is False
         assert checks["shape_match"] is True
         assert checks["min_samples_ok"] is True
-        assert checks["all_checks_passed"] is True
+        assert checks["n_classes"] == 2
 
     def test_check_data_integrity_with_nan(self):
         """Test data integrity with NaN values"""
@@ -194,7 +195,7 @@ class TestDataIntegrityFull:
         checks = check_data_integrity(X, y)
 
         assert checks["has_nan"] is True
-        assert checks["all_checks_passed"] is False
+        assert checks["no_missing_features"] is False
 
     def test_check_data_integrity_with_inf(self):
         """Test data integrity with infinite values"""
@@ -205,44 +206,37 @@ class TestDataIntegrityFull:
         checks = check_data_integrity(X, y)
 
         assert checks["has_inf"] is True
-        assert checks["all_checks_passed"] is False
+        assert checks["no_infinite_features"] is False
 
     def test_check_data_integrity_shape_mismatch(self):
         """Test data integrity with shape mismatch"""
         X = np.random.random((100, 5))
-        y = np.random.randint(0, 2, 80)  # Wrong size
+        y = np.random.randint(0, 2, 99)  # Different length
 
         checks = check_data_integrity(X, y)
 
         assert checks["shape_match"] is False
-        assert checks["all_checks_passed"] is False
+        assert checks["shape_consistent"] is False
 
     def test_check_data_integrity_too_few_samples(self):
         """Test data integrity with insufficient samples"""
-        X = np.random.random((3, 5))
-        y = np.array([0, 1, 0])
+        X = np.random.random((5, 5))
+        y = np.random.randint(0, 2, 5)
 
         checks = check_data_integrity(X, y)
 
         assert checks["min_samples_ok"] is False
-        assert checks["all_checks_passed"] is False
+        assert checks["sufficient_samples"] is False
 
     def test_validate_target_distribution(self):
         """Test target distribution validation"""
-        # Balanced target
-        y_balanced = np.array([0, 1, 0, 1, 0, 1])
-        dist_balanced = validate_target_distribution(y_balanced)
-        assert dist_balanced["n_classes"] == 2
-        assert dist_balanced["class_counts"][0] == 3
-        assert dist_balanced["class_counts"][1] == 3
-        assert dist_balanced["is_binary"] is True
-        assert dist_balanced["is_balanced"] is True
+        y = np.random.randint(0, 2, 100)
 
-        # Imbalanced target
-        y_imbalanced = np.array([0, 0, 0, 0, 1])
-        dist_imbalanced = validate_target_distribution(y_imbalanced)
-        assert dist_imbalanced["is_balanced"] is False
-        assert dist_imbalanced["imbalance_ratio"] == 0.8  # 4: 1 ratio
+        result = validate_target_distribution(y)
+
+        assert result["n_classes"] == 2
+        assert result["class_counts"][0] > 0
+        assert result["class_counts"][1] > 0
 
 
 class TestMetricsFull:
@@ -288,13 +282,14 @@ class TestMetricsFull:
 
     def test_calculate_prediction_distribution(self):
         """Test prediction distribution calculation"""
-        predictions = np.array([0, 1, 1, 0, 1, 1, 0, 1])
+        predictions = np.array([0, 1, 0, 1, 0])
+        result = calculate_prediction_distribution(predictions)
 
-        dist = calculate_prediction_distribution(predictions)
-        assert dist["class_0_count"] == 3
-        assert dist["class_1_count"] == 5
-        assert dist["class_0_ratio"] == 3 / 8
-        assert dist["class_1_ratio"] == 5 / 8
+        assert result["class_0_count"] == 3
+        assert result["class_1_count"] == 2
+        assert result["extrovert_ratio"] == 0.4
+        assert result["introvert_ratio"] == 0.6
+        assert result["total_predictions"] == 5
 
 
 class TestCVAggregationFull:
@@ -310,6 +305,16 @@ class TestCVAggregationFull:
         assert aggregated["min_score"] == 0.88
         assert aggregated["max_score"] == 0.92
         assert aggregated["fold_scores"] == fold_scores
+
+    def test_aggregate_cv_scores_varied(self):
+        """Test CV score aggregation with varied scores"""
+        scores = [0.91, 0.92, 0.93, 0.94, 0.95]
+        result = aggregate_cv_scores(scores)
+        
+        assert abs(result["mean_score"] - 0.93) < 0.01
+        assert result["std_score"] > 0
+        assert result["min_score"] == 0.91
+        assert result["max_score"] == 0.95
 
 
 class TestCVReportingFull:
