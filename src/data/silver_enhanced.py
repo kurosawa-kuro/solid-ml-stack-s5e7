@@ -160,52 +160,71 @@ class AdvancedStatisticalFeatures(BaseEstimator, TransformerMixin):
         
         # 1. Apply KNN imputation
         if self.knn_imputer and self.numeric_features:
-            # Store original missing indicators before imputation
+            # Store original missing indicators before imputation (bulk operation)
+            missing_indicators = {}
             for col in self.numeric_features:
                 if col in X_transformed.columns:
-                    X_transformed[f'{col}_was_missing'] = X_transformed[col].isna().astype(int)
+                    missing_indicators[f'{col}_was_missing'] = X_transformed[col].isna().astype(int)
+            
+            if missing_indicators:
+                missing_df = pd.DataFrame(missing_indicators, index=X_transformed.index)
+                X_transformed = pd.concat([X_transformed, missing_df], axis=1)
             
             # Apply KNN imputation
             X_transformed[self.numeric_features] = self.knn_imputer.transform(
                 X_transformed[self.numeric_features]
             )
         
-        # 2. Add statistical moment features
+        # 2. Add statistical moment features (bulk operation)
         if self.numeric_features:
             # Row-wise statistics
             numeric_data = X_transformed[self.numeric_features]
             
-            # Basic moments
-            X_transformed['row_mean'] = numeric_data.mean(axis=1)
-            X_transformed['row_std'] = numeric_data.std(axis=1)
-            X_transformed['row_skew'] = numeric_data.apply(lambda x: x.dropna().skew() if len(x.dropna()) > 0 else 0, axis=1)
-            X_transformed['row_kurtosis'] = numeric_data.apply(lambda x: x.dropna().kurtosis() if len(x.dropna()) > 0 else 0, axis=1)
+            # Calculate all statistical features at once
+            statistical_features = {
+                'row_mean': numeric_data.mean(axis=1),
+                'row_std': numeric_data.std(axis=1),
+                'row_skew': numeric_data.apply(lambda x: x.dropna().skew() if len(x.dropna()) > 0 else 0, axis=1),
+                'row_kurtosis': numeric_data.apply(lambda x: x.dropna().kurtosis() if len(x.dropna()) > 0 else 0, axis=1),
+                'row_q25': numeric_data.quantile(0.25, axis=1),
+                'row_q75': numeric_data.quantile(0.75, axis=1),
+            }
+            statistical_features['row_iqr'] = statistical_features['row_q75'] - statistical_features['row_q25']
             
-            # Quantiles
-            X_transformed['row_q25'] = numeric_data.quantile(0.25, axis=1)
-            X_transformed['row_q75'] = numeric_data.quantile(0.75, axis=1)
-            X_transformed['row_iqr'] = X_transformed['row_q75'] - X_transformed['row_q25']
+            # Add all statistical features in one operation
+            stats_df = pd.DataFrame(statistical_features, index=X_transformed.index)
+            X_transformed = pd.concat([X_transformed, stats_df], axis=1)
             
-            # Feature-specific moments for key features
+            # Feature-specific moments for key features (bulk operation)
             key_features = ['Social_event_attendance', 'Time_spent_Alone', 'Friends_circle_size']
+            key_feature_stats = {}
             for feat in key_features:
                 if feat in X_transformed.columns:
                     # Z-score
-                    X_transformed[f'{feat}_zscore'] = (
+                    key_feature_stats[f'{feat}_zscore'] = (
                         X_transformed[feat] - X_transformed[feat].mean()
                     ) / (X_transformed[feat].std() + 1e-8)
                     
                     # Percentile rank
-                    X_transformed[f'{feat}_percentile'] = X_transformed[feat].rank(pct=True)
+                    key_feature_stats[f'{feat}_percentile'] = X_transformed[feat].rank(pct=True)
+            
+            if key_feature_stats:
+                key_stats_df = pd.DataFrame(key_feature_stats, index=X_transformed.index)
+                X_transformed = pd.concat([X_transformed, key_stats_df], axis=1)
         
-        # 3. Mode-based features for categorical
+        # 3. Mode-based features for categorical (bulk operation)
         cat_features = X_transformed.select_dtypes(include=['object', 'category']).columns
+        mode_features = {}
         for col in cat_features:
             if col in X_transformed.columns and col != 'id':
                 # Add mode indicator
                 mode_value = X_transformed[col].mode()[0] if len(X_transformed[col].mode()) > 0 else None
                 if mode_value:
-                    X_transformed[f'{col}_is_mode'] = (X_transformed[col] == mode_value).astype(int)
+                    mode_features[f'{col}_is_mode'] = (X_transformed[col] == mode_value).astype(int)
+        
+        if mode_features:
+            mode_df = pd.DataFrame(mode_features, index=X_transformed.index)
+            X_transformed = pd.concat([X_transformed, mode_df], axis=1)
         
         return X_transformed
     
@@ -308,7 +327,24 @@ class EnhancedSilverPreprocessor(BaseEstimator, TransformerMixin):
 def apply_enhanced_silver_features(df: pd.DataFrame, y=None, is_train: bool = True) -> pd.DataFrame:
     """Convenience function to apply all enhanced Silver features"""
     
-    # First apply existing Silver features
+    # Ensure categorical preprocessing is applied first
+    from .bronze import encode_categorical_robust
+    
+    # Apply Bronze layer preprocessing if categorical columns exist
+    categorical_cols = ['Stage_fear', 'Drained_after_socializing']
+    if any(col in df.columns for col in categorical_cols):
+        # Check if any categorical column has string values that need encoding
+        needs_encoding = False
+        for col in categorical_cols:
+            if col in df.columns:
+                if df[col].dtype == 'object' or any(isinstance(val, str) for val in df[col].dropna().head(10)):
+                    needs_encoding = True
+                    break
+        
+        if needs_encoding:
+            df = encode_categorical_robust(df)
+    
+    # Apply existing Silver features
     from .silver import (
         advanced_features, 
         s5e7_interaction_features,

@@ -7,24 +7,21 @@ This document describes the top 3 high-impact strategies implemented in the enha
 **Target Score**: 0.976518  
 **Gap**: +0.008 (0.8%)
 
-## Strategy 1: CatBoost-Specific Feature Engineering (+0.3-0.5% expected)
+## Strategy 1: LightGBM-Optimized Feature Engineering (+0.3-0.5% expected)
 
 ### Implementation
-- **Binning**: Convert numeric features into 9 categorical bins using quantile-based discretization
-- **Clustering**: K-means clustering (k=3,5,7) on feature subsets to create categorical cluster assignments
-- **Power Transformations**: Yeo-Johnson transformation for highly skewed features (|skewness| > 1.0)
+- **Power Transformations**: Yeo-Johnson transformation for highly skewed features (|skewness| > 0.5)
 
 ### Rationale
-- CatBoost excels with categorical features due to its built-in target statistics
-- Binning captures non-linear relationships as discrete categories
-- Clustering identifies natural groupings in the data
+- LightGBM handles numerical features efficiently with gradient-based splits
 - Power transformations normalize distributions for better model performance
+- Simplified approach focused on numerical optimization rather than categorical engineering
 
 ### Code Usage
 ```python
-from src.data.silver_enhanced import CatBoostFeatureEngineer
+from src.data.silver_enhanced import LightGBMFeatureEngineer
 
-engineer = CatBoostFeatureEngineer(n_bins=9, clustering_k=[3, 5, 7])
+engineer = LightGBMFeatureEngineer(use_power_transforms=True)
 X_transformed = engineer.fit_transform(X_train, y_train)
 ```
 
@@ -83,7 +80,7 @@ The `EnhancedSilverPreprocessor` combines all three strategies:
 from src.data.silver_enhanced import EnhancedSilverPreprocessor
 
 preprocessor = EnhancedSilverPreprocessor(
-    use_catboost_features=True,
+    use_catboost_features=True,  # Actually uses LightGBM features
     use_target_encoding=True,
     use_statistical_features=True,
     target_cols=['Stage_fear', 'Drained_after_socializing']

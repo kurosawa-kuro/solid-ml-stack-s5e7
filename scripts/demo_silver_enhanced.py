@@ -13,12 +13,12 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from src.data.bronze import load_data, create_bronze_tables
 from src.data.silver_enhanced import (
-    CatBoostFeatureEngineer,
+    LightGBMFeatureEngineer,
     CVSafeTargetEncoder,
     AdvancedStatisticalFeatures,
     apply_enhanced_silver_features
 )
-from src.data.gold import prepare_data
+from src.data.bronze import load_data
 
 
 def main():
@@ -39,31 +39,29 @@ def main():
     print(f"   ✓ Bronze data shape: {train_bronze.shape}")
     print(f"   ✓ Features: {list(train_bronze.columns)[:10]}...")
     
-    # Prepare base features
-    X_train, y_train, X_test = prepare_data(train_bronze, test_bronze)
+    # Prepare base features for demo
+    X_train = train_bronze.drop(['id', 'Personality'], axis=1, errors='ignore')
+    if 'Personality' in train_bronze.columns:
+        # Encode target variable: Extrovert -> 1, Introvert -> 0
+        y_train = (train_bronze['Personality'] == 'Extrovert').astype(int)
+    else:
+        y_train = None
+    X_test = test_bronze.drop(['id'], axis=1, errors='ignore')
     print(f"\n2. Base features: {X_train.shape[1]} columns")
     
-    # Demo Strategy 1: CatBoost Features
-    print("\n3. CatBoost-Specific Features (Strategy 1)")
-    print("   - Binning numeric features into categories")
-    print("   - Creating cluster-based features")
+    # Demo Strategy 1: LightGBM Features
+    print("\n3. LightGBM-Optimized Features (Strategy 1)")
     print("   - Applying power transformations")
     
-    catboost_eng = CatBoostFeatureEngineer(n_bins=5, clustering_k=[3, 5])
-    X_catboost = catboost_eng.fit_transform(X_train.head(100))  # Demo on small sample
+    lightgbm_eng = LightGBMFeatureEngineer(use_power_transforms=True)
+    X_lightgbm = lightgbm_eng.fit_transform(X_train.head(100))  # Demo on small sample
     
-    binned_features = [col for col in X_catboost.columns if '_binned' in col]
-    cluster_features = [col for col in X_catboost.columns if 'cluster_' in col]
-    power_features = [col for col in X_catboost.columns if '_power' in col]
+    power_features = [col for col in X_lightgbm.columns if '_power' in col]
     
-    print(f"   ✓ Created {len(binned_features)} binned features")
-    print(f"   ✓ Created {len(cluster_features)} cluster features")
     print(f"   ✓ Created {len(power_features)} power transform features")
     
-    if binned_features:
-        print(f"   Example binned: {binned_features[0]} = {X_catboost[binned_features[0]].unique()[:5]}...")
-    if cluster_features:
-        print(f"   Example cluster: {cluster_features[0]} = {X_catboost[cluster_features[0]].unique()}")
+    if power_features:
+        print(f"   Example power: {power_features[0]} = {X_lightgbm[power_features[0]].head(3).values}...")
     
     # Demo Strategy 2: Target Encoding
     print("\n4. Target Encoding with CV Safety (Strategy 2)")
