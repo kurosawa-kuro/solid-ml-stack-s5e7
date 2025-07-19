@@ -18,7 +18,7 @@ class DataManager:
         self.db_path = self.config["database"]["path"]
         self.conn = None
         self.cache_dir = Path(self.config["cache"]["directory"])
-        self.cache_dir.mkdir(exist_ok=True)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
 
     def _connect(self):
         """データベース接続"""
