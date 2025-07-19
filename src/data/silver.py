@@ -3,28 +3,55 @@ Silver Level Data Management
 Feature Engineering & Advanced Preprocessing
 """
 
-from typing import Tuple
+from typing import Tuple, List, Dict, Any
+import warnings
 
 import duckdb
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import PolynomialFeatures
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
+from sklearn.base import BaseEstimator, TransformerMixin
 
 DB_PATH = "/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb"
 
+# Suppress warnings for cleaner output
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=UserWarning)
+
 
 def advanced_features(df: pd.DataFrame) -> pd.DataFrame:
-    """高度な特徴量エンジニアリング"""
+    """高度な特徴量エンジニアリング - 15+ statistical & domain features"""
     df = df.copy()
 
-    # 既存の基本特徴量
-    if "Social_event_attendance" in df.columns and "Time_spent_Alone" in df.columns:
-        df["social_ratio"] = df["Social_event_attendance"] / (df["Time_spent_Alone"] + 1)
+    # Bronze層の特徴量を活用（重複を避ける）
+    bronze_features = [
+        'social_participation_rate', 'communication_ratio', 'friend_social_efficiency',
+        'non_social_outings', 'activity_balance', 'social_ratio', 'activity_sum'
+    ]
+    
+    # Bronze層の特徴量が存在しない場合は作成
+    if 'social_participation_rate' not in df.columns and 'Social_event_attendance' in df.columns and 'Going_outside' in df.columns:
+        df['social_participation_rate'] = df['Social_event_attendance'] / (df['Going_outside'] + 1e-8)
+    
+    if 'communication_ratio' not in df.columns and all(col in df.columns for col in ['Post_frequency', 'Social_event_attendance', 'Going_outside']):
+        df['communication_ratio'] = df['Post_frequency'] / (df['Social_event_attendance'] + df['Going_outside'] + 1e-8)
+    
+    if 'friend_social_efficiency' not in df.columns and 'Social_event_attendance' in df.columns and 'Friends_circle_size' in df.columns:
+        df['friend_social_efficiency'] = df['Social_event_attendance'] / (df['Friends_circle_size'] + 1e-8)
+    
+    if 'non_social_outings' not in df.columns and 'Going_outside' in df.columns and 'Social_event_attendance' in df.columns:
+        df['non_social_outings'] = df['Going_outside'] - df['Social_event_attendance']
+    
+    if 'activity_balance' not in df.columns and 'Social_event_attendance' in df.columns and 'Time_spent_Alone' in df.columns:
+        df['activity_balance'] = df['Social_event_attendance'] / (df['Time_spent_Alone'] + 1e-8)
+    
+    if 'social_ratio' not in df.columns and 'Social_event_attendance' in df.columns and 'Time_spent_Alone' in df.columns:
+        df['social_ratio'] = df['Social_event_attendance'] / (df['Time_spent_Alone'] + 1e-8)
+    
+    if 'activity_sum' not in df.columns and 'Going_outside' in df.columns and 'Social_event_attendance' in df.columns:
+        df['activity_sum'] = df['Going_outside'] + df['Social_event_attendance']
 
-    if "Going_outside" in df.columns and "Social_event_attendance" in df.columns:
-        df["activity_sum"] = df["Going_outside"] + df["Social_event_attendance"]
-
-    # 新しい特徴量
+    # 新しい特徴量（Silver層固有）
     numeric_cols = [
         "Time_spent_Alone",
         "Social_event_attendance",
@@ -38,14 +65,20 @@ def advanced_features(df: pd.DataFrame) -> pd.DataFrame:
         df["total_activity"] = df[numeric_cols].sum(axis=1)
         df["avg_activity"] = df[numeric_cols].mean(axis=1)
         df["activity_std"] = df[numeric_cols].std(axis=1)
+        df["activity_min"] = df[numeric_cols].min(axis=1)
+        df["activity_max"] = df[numeric_cols].max(axis=1)
+        df["activity_range"] = df["activity_max"] - df["activity_min"]
 
     # 比率特徴量
     if "Friends_circle_size" in df.columns and "Post_frequency" in df.columns:
-        df["post_per_friend"] = df["Post_frequency"] / (df["Friends_circle_size"] + 1)
+        df["post_per_friend"] = df["Post_frequency"] / (df["Friends_circle_size"] + 1e-8)
+        df["friend_efficiency"] = df["Friends_circle_size"] / (df["Post_frequency"] + 1e-8)
 
     # 二項交互作用
     if "Stage_fear_encoded" in df.columns and "Drained_after_socializing_encoded" in df.columns:
         df["fear_drain_interaction"] = df["Stage_fear_encoded"] * df["Drained_after_socializing_encoded"]
+        df["fear_drain_sum"] = df["Stage_fear_encoded"] + df["Drained_after_socializing_encoded"]
+        df["fear_drain_ratio"] = df["Stage_fear_encoded"] / (df["Drained_after_socializing_encoded"] + 1e-8)
 
     # 外向性スコア（仮説ベース）
     extrovert_features = []
@@ -58,14 +91,40 @@ def advanced_features(df: pd.DataFrame) -> pd.DataFrame:
 
     if extrovert_features:
         df["extrovert_score"] = df[extrovert_features].sum(axis=1)
+        df["extrovert_avg"] = df[extrovert_features].mean(axis=1)
+        df["extrovert_std"] = df[extrovert_features].std(axis=1)
 
     # 内向性スコア
+    introvert_features = []
     if "Time_spent_Alone" in df.columns:
-        df["introvert_score"] = df["Time_spent_Alone"]
-        if "Stage_fear_encoded" in df.columns:
-            df["introvert_score"] += df["Stage_fear_encoded"] * 2
-        if "Drained_after_socializing_encoded" in df.columns:
-            df["introvert_score"] += df["Drained_after_socializing_encoded"] * 2
+        introvert_features.append("Time_spent_Alone")
+    if "Stage_fear_encoded" in df.columns:
+        introvert_features.append("Stage_fear_encoded")
+    if "Drained_after_socializing_encoded" in df.columns:
+        introvert_features.append("Drained_after_socializing_encoded")
+
+    if introvert_features:
+        df["introvert_score"] = df[introvert_features].sum(axis=1)
+        df["introvert_avg"] = df[introvert_features].mean(axis=1)
+        df["introvert_std"] = df[introvert_features].std(axis=1)
+
+    # 複合指標
+    if "extrovert_score" in df.columns and "introvert_score" in df.columns:
+        df["personality_balance"] = df["extrovert_score"] - df["introvert_score"]
+        df["personality_ratio"] = df["extrovert_score"] / (df["introvert_score"] + 1e-8)
+        df["personality_sum"] = df["extrovert_score"] + df["introvert_score"]
+
+    # 時間関連特徴量
+    if "Time_spent_Alone" in df.columns:
+        df["alone_percentage"] = df["Time_spent_Alone"] / 24.0  # 24時間中の割合
+        df["alone_squared"] = df["Time_spent_Alone"] ** 2
+        df["alone_log"] = np.log1p(df["Time_spent_Alone"])
+
+    # ソーシャル関連特徴量
+    if "Social_event_attendance" in df.columns:
+        df["social_squared"] = df["Social_event_attendance"] ** 2
+        df["social_log"] = np.log1p(df["Social_event_attendance"])
+        df["social_percentage"] = df["Social_event_attendance"] / (df["Social_event_attendance"].max() + 1e-8)
 
     return df
 
@@ -75,42 +134,68 @@ def enhanced_interaction_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
     # 上位特徴量の交互作用項（重要度順）
-    top_features = ["extrovert_score", "social_ratio"]
+    top_features = ["extrovert_score", "social_ratio", "social_participation_rate"]
 
     # 1. extrovert_score と social_ratio の交互作用
-    if all(col in df.columns for col in top_features):
+    if all(col in df.columns for col in ["extrovert_score", "social_ratio"]):
         df["extrovert_social_interaction"] = df["extrovert_score"] * df["social_ratio"]
-
-        # 比率ベースの交互作用
-        df["extrovert_social_ratio"] = df["extrovert_score"] / (df["social_ratio"] + 1)
-        df["social_extrovert_ratio"] = df["social_ratio"] / (df["extrovert_score"] + 1)
+        df["extrovert_social_ratio"] = df["extrovert_score"] / (df["social_ratio"] + 1e-8)
+        df["social_extrovert_ratio"] = df["social_ratio"] / (df["extrovert_score"] + 1e-8)
 
     # 2. extrovert_score と他の重要特徴量との交互作用
     if "extrovert_score" in df.columns:
         if "Social_event_attendance" in df.columns:
             df["extrovert_social_event_interaction"] = df["extrovert_score"] * df["Social_event_attendance"]
+            df["extrovert_social_event_ratio"] = df["extrovert_score"] / (df["Social_event_attendance"] + 1e-8)
 
         if "Time_spent_Alone" in df.columns:
             df["extrovert_alone_interaction"] = df["extrovert_score"] * df["Time_spent_Alone"]
             df["extrovert_alone_contrast"] = df["extrovert_score"] - df["Time_spent_Alone"]
+            df["extrovert_alone_ratio"] = df["extrovert_score"] / (df["Time_spent_Alone"] + 1e-8)
 
         if "Drained_after_socializing_encoded" in df.columns:
             df["extrovert_drain_interaction"] = df["extrovert_score"] * df["Drained_after_socializing_encoded"]
+            df["extrovert_drain_ratio"] = df["extrovert_score"] / (df["Drained_after_socializing_encoded"] + 1e-8)
+
+        if "Friends_circle_size" in df.columns:
+            df["extrovert_friends_interaction"] = df["extrovert_score"] * df["Friends_circle_size"]
+            df["extrovert_friends_ratio"] = df["extrovert_score"] / (df["Friends_circle_size"] + 1e-8)
 
     # 3. social_ratio と他の特徴量との交互作用
     if "social_ratio" in df.columns:
         if "Friends_circle_size" in df.columns:
             df["social_friends_interaction"] = df["social_ratio"] * df["Friends_circle_size"]
+            df["social_friends_ratio"] = df["social_ratio"] / (df["Friends_circle_size"] + 1e-8)
 
         if "Going_outside" in df.columns:
             df["social_outside_interaction"] = df["social_ratio"] * df["Going_outside"]
+            df["social_outside_ratio"] = df["social_ratio"] / (df["Going_outside"] + 1e-8)
 
         if "Post_frequency" in df.columns:
             df["social_post_interaction"] = df["social_ratio"] * df["Post_frequency"]
+            df["social_post_ratio"] = df["social_ratio"] / (df["Post_frequency"] + 1e-8)
 
-    # 4. 三項交互作用（最重要特徴量のみ）
+    # 4. social_participation_rate との交互作用
+    if "social_participation_rate" in df.columns:
+        if "Time_spent_Alone" in df.columns:
+            df["participation_alone_interaction"] = df["social_participation_rate"] * df["Time_spent_Alone"]
+            df["participation_alone_ratio"] = df["social_participation_rate"] / (df["Time_spent_Alone"] + 1e-8)
+
+        if "Friends_circle_size" in df.columns:
+            df["participation_friends_interaction"] = df["social_participation_rate"] * df["Friends_circle_size"]
+            df["participation_friends_ratio"] = df["social_participation_rate"] / (df["Friends_circle_size"] + 1e-8)
+
+    # 5. 三項交互作用（最重要特徴量のみ）
     if all(col in df.columns for col in ["extrovert_score", "social_ratio", "Social_event_attendance"]):
         df["triple_interaction"] = df["extrovert_score"] * df["social_ratio"] * df["Social_event_attendance"]
+
+    if all(col in df.columns for col in ["extrovert_score", "social_participation_rate", "Time_spent_Alone"]):
+        df["triple_participation_interaction"] = df["extrovert_score"] * df["social_participation_rate"] * df["Time_spent_Alone"]
+
+    # 6. 複合比率特徴量
+    if all(col in df.columns for col in ["social_ratio", "communication_ratio", "friend_social_efficiency"]):
+        df["composite_social_score"] = (df["social_ratio"] + df["communication_ratio"] + df["friend_social_efficiency"]) / 3
+        df["social_efficiency_balance"] = df["social_ratio"] * df["friend_social_efficiency"]
 
     return df
 
@@ -120,13 +205,15 @@ def polynomial_features(df: pd.DataFrame, degree: int = 2) -> pd.DataFrame:
     df = df.copy()
 
     # 多項式特徴量を適用する数値特徴量を選定
-    # 重要度の高い特徴量のみに限定してノイズを減らす
     key_features = []
 
     # 上位特徴量のみ選択（数値のみ確保）
     top_numeric_features = [
         "extrovert_score",
         "social_ratio",
+        "social_participation_rate",
+        "communication_ratio",
+        "friend_social_efficiency",
         "Social_event_attendance",
         "Time_spent_Alone",
         "Friends_circle_size",
@@ -243,6 +330,7 @@ def create_silver_tables() -> None:
     print("Silver tables created: ")
     print(f"- silver.train: {len(train_silver)} rows, {len(train_silver.columns)} columns")
     print(f"- silver.test: {len(test_silver)} rows, {len(test_silver.columns)} columns")
+    print(f"- Total engineered features: {len(train_silver.columns) - len(train_bronze.columns)}")
 
     conn.close()
 
@@ -289,9 +377,12 @@ def s5e7_drain_adjusted_features(df: pd.DataFrame) -> pd.DataFrame:
     if available_cols:
         df['Activity_ratio'] = df[available_cols].sum(axis=1)
     
-    # Drain_adjusted_activity = activity_ratio × (1 - Drained_after_socializing)
-    if 'Activity_ratio' in df.columns and 'Drained_after_socializing' in df.columns:
-        df['Drain_adjusted_activity'] = df['Activity_ratio'] * (1 - df['Drained_after_socializing'])
+    # Drain_adjusted_activity = activity_ratio × (1 - Drained_after_socializing_encoded)
+    if 'Activity_ratio' in df.columns and 'Drained_after_socializing_encoded' in df.columns:
+        df['Drain_adjusted_activity'] = df['Activity_ratio'] * (1 - df['Drained_after_socializing_encoded'])
+    elif 'Activity_ratio' in df.columns and 'Drained_after_socializing' in df.columns:
+        # Fallback: encode if not already encoded
+        df['Drain_adjusted_activity'] = df['Activity_ratio'] * (1 - (df['Drained_after_socializing'] == 'Yes').astype(float))
     
     # Introvert_extrovert_spectrum = quantified_personality_score
     extrovert_features = ['Social_event_attendance', 'Going_outside', 'Friends_circle_size']
@@ -339,6 +430,9 @@ def get_feature_importance_order() -> list:
         "Drained_after_socializing_encoded",
         "Stage_fear_encoded",
         "social_ratio",
+        "social_participation_rate",
+        "communication_ratio",
+        "friend_social_efficiency",
         "Friends_circle_size",
         "Going_outside",
         "Post_frequency",
@@ -347,4 +441,86 @@ def get_feature_importance_order() -> list:
         "fear_drain_interaction",
         "total_activity",
         "avg_activity",
+        "personality_balance",
+        "personality_ratio",
     ]
+
+
+# ===== Sklearn-Compatible Transformers for Pipeline Integration =====
+
+class SilverPreprocessor(BaseEstimator, TransformerMixin):
+    """Sklearn-compatible transformer for Silver layer processing"""
+    
+    def __init__(self, add_polynomial: bool = True, add_scaling: bool = True):
+        self.add_polynomial = add_polynomial
+        self.add_scaling = add_scaling
+        self.is_fitted = False
+    
+    def fit(self, X, y=None):
+        """Fit the transformer (no fitting required for Silver layer)"""
+        self.is_fitted = True
+        return self
+    
+    def transform(self, X):
+        """Apply Silver layer transformations"""
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before transform")
+        
+        # Apply Silver pipeline
+        X_transformed = advanced_features(X)
+        X_transformed = s5e7_interaction_features(X_transformed)
+        X_transformed = s5e7_drain_adjusted_features(X_transformed)
+        X_transformed = s5e7_communication_ratios(X_transformed)
+        X_transformed = enhanced_interaction_features(X_transformed)
+        
+        if self.add_polynomial:
+            X_transformed = polynomial_features(X_transformed, degree=2)
+        
+        if self.add_scaling:
+            X_transformed = scaling_features(X_transformed)
+        
+        return X_transformed
+
+
+class FoldSafeSilverPreprocessor(BaseEstimator, TransformerMixin):
+    """Fold-safe Silver preprocessor for CV integration"""
+    
+    def __init__(self):
+        self.scaler = StandardScaler()
+        self.is_fitted = False
+    
+    def fit(self, X, y=None):
+        """Learn scaling parameters from training data only"""
+        # Apply Silver transformations
+        X_silver = advanced_features(X)
+        X_silver = s5e7_interaction_features(X_silver)
+        X_silver = s5e7_drain_adjusted_features(X_silver)
+        X_silver = s5e7_communication_ratios(X_silver)
+        X_silver = enhanced_interaction_features(X_silver)
+        
+        # Fit scaler on numeric features only
+        numeric_features = X_silver.select_dtypes(include=[np.number]).columns
+        if len(numeric_features) > 0:
+            self.scaler.fit(X_silver[numeric_features])
+        
+        self.is_fitted = True
+        return self
+    
+    def transform(self, X):
+        """Apply fold-safe transformations"""
+        if not self.is_fitted:
+            raise ValueError("Transformer must be fitted before transform")
+        
+        # Apply Silver transformations
+        X_transformed = advanced_features(X)
+        X_transformed = s5e7_interaction_features(X_transformed)
+        X_transformed = s5e7_drain_adjusted_features(X_transformed)
+        X_transformed = s5e7_communication_ratios(X_transformed)
+        X_transformed = enhanced_interaction_features(X_transformed)
+        
+        # Apply scaling only to numeric features
+        numeric_features = X_transformed.select_dtypes(include=[np.number]).columns
+        if len(numeric_features) > 0:
+            X_transformed[numeric_features] = self.scaler.transform(X_transformed[numeric_features])
+        
+        return X_transformed

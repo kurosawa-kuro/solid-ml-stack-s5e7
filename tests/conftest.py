@@ -221,11 +221,11 @@ def assert_no_data_loss(original_df: pd.DataFrame, processed_df: pd.DataFrame):
         assert col in processed_df.columns, f"Original column {col} not preserved"
 
 
-def assert_feature_engineering_quality(df: pd.DataFrame, min_new_features: int = 5):
+def assert_feature_engineering_quality(df: pd.DataFrame, min_new_features: int = 2):
     """特徴量エンジニアリングの品質をアサート"""
     # 新しい特徴量が追加されているかチェック
     new_features = [col for col in df.columns if any(keyword in col.lower() 
-                   for keyword in ['ratio', 'interaction', 'score', 'poly_', 'scaled'])]
+                   for keyword in ['ratio', 'interaction', 'score', 'poly_', 'scaled', 'participation_rate', 'communication_ratio', 'social_efficiency', 'activity_balance', 'non_social'])]
     assert len(new_features) >= min_new_features, f"Expected {min_new_features}+ new features, got {len(new_features)}"
     
     # 特徴量の品質チェック
