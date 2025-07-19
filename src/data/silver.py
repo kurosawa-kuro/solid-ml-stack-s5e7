@@ -88,6 +88,15 @@ def advanced_features(df: pd.DataFrame) -> pd.DataFrame:
         df["fear_drain_interaction"] = df["Stage_fear_encoded"] * df["Drained_after_socializing_encoded"]
         df["fear_drain_sum"] = df["Stage_fear_encoded"] + df["Drained_after_socializing_encoded"]
         df["fear_drain_ratio"] = df["Stage_fear_encoded"] / (df["Drained_after_socializing_encoded"] + 1e-8)
+    
+    # 追加の交互作用特徴量（確実に作成）
+    if "Social_event_attendance" in df.columns and "Time_spent_Alone" in df.columns:
+        df["social_alone_interaction"] = df["Social_event_attendance"] * df["Time_spent_Alone"]
+        df["social_alone_ratio"] = df["Social_event_attendance"] / (df["Time_spent_Alone"] + 1e-8)
+    
+    if "Friends_circle_size" in df.columns and "Post_frequency" in df.columns:
+        df["friends_post_interaction"] = df["Friends_circle_size"] * df["Post_frequency"]
+        df["friends_post_ratio"] = df["Friends_circle_size"] / (df["Post_frequency"] + 1e-8)
 
     # 外向性スコア（仮説ベース）
     extrovert_features = []
@@ -127,6 +136,7 @@ def advanced_features(df: pd.DataFrame) -> pd.DataFrame:
     if "Time_spent_Alone" in df.columns:
         df["alone_percentage"] = df["Time_spent_Alone"] / 24.0  # 24時間中の割合
         df["alone_squared"] = df["Time_spent_Alone"] ** 2
+        # 無限値を避けるため、log1pを使用
         df["alone_log"] = np.log1p(df["Time_spent_Alone"])
 
     # ソーシャル関連特徴量

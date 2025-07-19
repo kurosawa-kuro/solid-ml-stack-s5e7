@@ -174,15 +174,15 @@ def prepare_model_data(
     # 使用可能な特徴量のみ選択
     available_features = [col for col in feature_cols if col in df.columns]
 
-    # 基本カラム追加
-    model_cols = ["id"] if "id" in df.columns else []
+    # 基本カラム追加（元のカラムを保持）
+    model_cols = list(df.columns)  # 元のカラムをすべて保持
+    
+    # ターゲットエンコーディング
     if target_col and target_col in df.columns:
-        model_cols.append(target_col)
         # エンコードされたターゲットも追加
         encoded_target = f"{target_col}_encoded"
         if encoded_target in df.columns:
             model_cols.append(encoded_target)
-    model_cols.extend(available_features)
 
     return df[model_cols]
 
@@ -260,8 +260,9 @@ def get_ml_ready_data(df: pd.DataFrame, target_col: str = "Personality", scale_f
     # Prepare model data
     model_data = prepare_model_data(df, target_col=target_col)
     
-    # Encode target
-    model_data = encode_target(model_data, target_col)
+    # Encode target if not already encoded
+    if f"{target_col}_encoded" not in model_data.columns:
+        model_data = encode_target(model_data, target_col)
     
     # Extract features and target
     feature_cols = [col for col in model_data.columns 

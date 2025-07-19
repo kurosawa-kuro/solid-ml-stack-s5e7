@@ -57,7 +57,8 @@ def _set_optimal_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     categorical_cols = ['Stage_fear', 'Drained_after_socializing']
     for col in categorical_cols:
         if col in df.columns:
-            df[col] = df[col].astype('object')
+            # Convert to string first, then to object
+            df[col] = df[col].astype(str).astype('object')
     
     return df
 
@@ -86,18 +87,32 @@ def validate_data_quality(df: pd.DataFrame) -> Dict[str, Any]:
     
     # Range validation with more comprehensive checks
     if 'Time_spent_Alone' in df.columns:
-        validation_results['range_validation']['Time_spent_Alone'] = {
-            'within_24hrs': (df['Time_spent_Alone'] <= 24).all(),
-            'non_negative': (df['Time_spent_Alone'] >= 0).all(),
-            'finite_values': np.isfinite(df['Time_spent_Alone']).all()
-        }
+        # 数値型かどうかをチェックしてから比較
+        if pd.api.types.is_numeric_dtype(df['Time_spent_Alone']):
+            validation_results['range_validation']['Time_spent_Alone'] = {
+                'within_24hrs': (df['Time_spent_Alone'] <= 24).all(),
+                'non_negative': (df['Time_spent_Alone'] >= 0).all(),
+                'finite_values': np.isfinite(df['Time_spent_Alone']).all()
+            }
+        else:
+            validation_results['range_validation']['Time_spent_Alone'] = {
+                'within_24hrs': False,
+                'non_negative': False,
+                'finite_values': False
+            }
     
     for col in ['Social_event_attendance', 'Going_outside', 'Friends_circle_size', 'Post_frequency']:
         if col in df.columns:
-            validation_results['range_validation'][col] = {
-                'non_negative': (df[col] >= 0).all(),
-                'finite_values': np.isfinite(df[col]).all()
-            }
+            if pd.api.types.is_numeric_dtype(df[col]):
+                validation_results['range_validation'][col] = {
+                    'non_negative': (df[col] >= 0).all(),
+                    'finite_values': np.isfinite(df[col]).all()
+                }
+            else:
+                validation_results['range_validation'][col] = {
+                    'non_negative': False,
+                    'finite_values': False
+                }
     
     # Quality metrics
     validation_results['quality_metrics'] = {
@@ -262,8 +277,12 @@ def quick_preprocess(df: pd.DataFrame) -> pd.DataFrame:
     # カテゴリ変換
     if "Stage_fear" in df.columns:
         df["Stage_fear_encoded"] = (df["Stage_fear"] == "Yes").astype(int)
+        # 元のStage_fearを削除してLightGBM互換性を確保
+        df = df.drop(columns=["Stage_fear"])
     if "Drained_after_socializing" in df.columns:
         df["Drained_after_socializing_encoded"] = (df["Drained_after_socializing"] == "Yes").astype(int)
+        # 元のDrained_after_socializingを削除してLightGBM互換性を確保
+        df = df.drop(columns=["Drained_after_socializing"])
 
     return df
 

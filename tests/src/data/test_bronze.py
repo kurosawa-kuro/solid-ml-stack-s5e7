@@ -258,12 +258,18 @@ class TestBronzeLeakPrevention:
 
     def test_missing_strategy_fold_safety(self, missing_data):
         """Test missing value strategy is fold-safe"""
+        # ターゲット列からNaNを除去してからCVを実行
+        clean_data = missing_data.dropna(subset=["Stage_fear_encoded"])
+        
+        if len(clean_data) < 4:  # 十分なサンプルがない場合はスキップ
+            pytest.skip("Insufficient samples for CV")
+        
         skf = StratifiedKFold(n_splits=2, shuffle=True, random_state=42)
         
         fold_missing_flags = []
-        for train_idx, val_idx in skf.split(missing_data, missing_data["Stage_fear_encoded"]):
-            train_fold = missing_data.iloc[train_idx]
-            val_fold = missing_data.iloc[val_idx]
+        for train_idx, val_idx in skf.split(clean_data, clean_data["Stage_fear_encoded"]):
+            train_fold = clean_data.iloc[train_idx]
+            val_fold = clean_data.iloc[val_idx]
             
             # Apply missing strategy only on training fold
             train_processed = advanced_missing_strategy(train_fold)

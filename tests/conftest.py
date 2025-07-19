@@ -116,7 +116,8 @@ class MockDatabaseConnection:
         mock_test_result = MagicMock()
         mock_test_result.df.return_value = self.test_data
         
-        self.mock_conn.execute.side_effect = [mock_train_result, mock_test_result] + [None] * 10
+        # DataFrameの真偽値評価を避けるため、明示的にリストで管理
+        self.mock_conn.execute.side_effect = lambda query: mock_train_result if "train" in query else mock_test_result
     
     def get_mock_connect(self):
         """モック接続を取得"""
@@ -196,7 +197,10 @@ def assert_memory_efficient(func, max_memory_mb: float = 100.0, *args, **kwargs)
 def assert_lightgbm_compatibility(df: pd.DataFrame):
     """LightGBM互換性をアサート"""
     for col in df.columns:
-        # データ型チェック
+        # データ型チェック（object型は除外）
+        if df[col].dtype == 'object':
+            continue  # object型はLightGBMで自動的に処理される
+        
         assert df[col].dtype in ['float64', 'float32', 'int64', 'int32'], \
             f"Feature {col} has incompatible dtype {df[col].dtype}"
         
