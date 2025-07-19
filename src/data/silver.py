@@ -4,9 +4,10 @@ Feature Engineering & Advanced Preprocessing
 """
 
 from typing import Tuple
-import pandas as pd
-import numpy as np
+
 import duckdb
+import numpy as np
+import pandas as pd
 
 DB_PATH = "/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb"
 

@@ -82,8 +82,8 @@ for name, model in trained_models.items():
 
 submission_gen = SubmissionGenerator()
 submission_path = submission_gen.create_submission(
-    test_predictions[best_model_name], 
-    test_data['id'], 
+    test_predictions[best_model_name],
+    test_data['id'],
     filename='submission.csv'
 )
 ```

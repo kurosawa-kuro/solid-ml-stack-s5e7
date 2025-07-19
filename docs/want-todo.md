@@ -68,8 +68,8 @@ if args.ensemble:
 ```python
 # K-Fold CVでより安定した評価
 from sklearn.model_selection import StratifiedKFold
-cv_scores = cross_val_score(model, X_train_features, y_train, 
-                           cv=StratifiedKFold(n_splits=5), 
+cv_scores = cross_val_score(model, X_train_features, y_train,
+                           cv=StratifiedKFold(n_splits=5),
                            scoring='accuracy')
 ```
 
@@ -119,11 +119,11 @@ from functools import wraps
 class MemoryMonitor:
     def __init__(self):
         self.process = psutil.Process()
-        
+
     def get_memory_usage(self):
         """現在のメモリ使用量を取得"""
         return self.process.memory_info().rss / 1024 / 1024  # MB
-        
+
     def monitor(self, func):
         """デコレータ：関数実行前後のメモリ使用量を表示"""
         @wraps(func)
@@ -134,7 +134,7 @@ class MemoryMonitor:
             print(f"💾 {func.__name__}: {before:.1f}MB → {after:.1f}MB (差分: {after-before:+.1f}MB)")
             return result
         return wrapper
-    
+
     def clean_memory(self):
         """強制的にガベージコレクション実行"""
         gc.collect()
@@ -151,7 +151,7 @@ class ExperimentTracker:
     def __init__(self, log_file: Path = Path("data/experiments.json")):
         self.log_file = log_file
         self.current_experiment = {}
-        
+
     def start_experiment(self, name: str, description: str = ""):
         """実験開始を記録"""
         self.current_experiment = {
@@ -162,30 +162,30 @@ class ExperimentTracker:
             "metrics": {},
             "notes": []
         }
-        
+
     def log_params(self, **params):
         """パラメータを記録"""
         self.current_experiment["parameters"].update(params)
-        
+
     def log_metric(self, name: str, value: float):
         """メトリクスを記録"""
         self.current_experiment["metrics"][name] = value
-        
+
     def add_note(self, note: str):
         """メモを追加"""
         self.current_experiment["notes"].append(note)
-        
+
     def end_experiment(self):
         """実験終了・保存"""
         self.current_experiment["end_time"] = datetime.now().isoformat()
         self._save_experiment()
-        
+
     def get_best_experiments(self, metric: str, top_k: int = 5):
         """指定メトリクスでトップK実験を取得"""
         experiments = self._load_all_experiments()
         sorted_exps = sorted(
-            experiments, 
-            key=lambda x: x.get("metrics", {}).get(metric, 0), 
+            experiments,
+            key=lambda x: x.get("metrics", {}).get(metric, 0),
             reverse=True
         )
         return sorted_exps[:top_k]
@@ -200,18 +200,18 @@ from typing import List, Dict
 class DataQualityChecker:
     def __init__(self):
         self.issues = []
-        
+
     def check_dataset(self, df: pd.DataFrame, name: str = "dataset") -> Dict:
         """データセットの品質を総合チェック"""
         print(f"🔍 {name}の品質チェック開始...")
-        
+
         report = {
             "name": name,
             "shape": df.shape,
             "memory_usage": df.memory_usage(deep=True).sum() / 1024**2,  # MB
             "issues": []
         }
-        
+
         # 欠損値チェック
         missing = df.isnull().sum()
         if missing.any():
@@ -219,7 +219,7 @@ class DataQualityChecker:
                 "type": "missing_values",
                 "columns": missing[missing > 0].to_dict()
             })
-            
+
         # 重複行チェック
         duplicates = df.duplicated().sum()
         if duplicates > 0:
@@ -227,7 +227,7 @@ class DataQualityChecker:
                 "type": "duplicate_rows",
                 "count": duplicates
             })
-            
+
         # 定数カラムチェック
         constant_cols = [col for col in df.columns if df[col].nunique() == 1]
         if constant_cols:
@@ -235,7 +235,7 @@ class DataQualityChecker:
                 "type": "constant_columns",
                 "columns": constant_cols
             })
-            
+
         # 外れ値チェック（数値カラムのみ）
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         outliers = {}
@@ -245,30 +245,30 @@ class DataQualityChecker:
             outlier_count = ((df[col] < (q1 - 3 * iqr)) | (df[col] > (q3 + 3 * iqr))).sum()
             if outlier_count > 0:
                 outliers[col] = outlier_count
-        
+
         if outliers:
             report["issues"].append({
                 "type": "outliers",
                 "columns": outliers
             })
-            
+
         self._print_report(report)
         return report
-    
+
     def compare_distributions(self, train: pd.DataFrame, test: pd.DataFrame):
         """訓練データとテストデータの分布を比較"""
         print("📊 データ分布の比較...")
-        
+
         differences = []
         for col in train.columns:
             if col not in test.columns:
                 continue
-                
+
             if train[col].dtype in ['object', 'category']:
                 # カテゴリカル変数の比較
                 train_vals = set(train[col].unique())
                 test_vals = set(test[col].unique())
-                
+
                 if train_vals != test_vals:
                     differences.append({
                         "column": col,
@@ -280,7 +280,7 @@ class DataQualityChecker:
                 # 数値変数の比較
                 train_stats = train[col].describe()
                 test_stats = test[col].describe()
-                
+
                 # 平均値の大きな差をチェック
                 mean_diff = abs(train_stats['mean'] - test_stats['mean'])
                 if mean_diff > 0.1 * abs(train_stats['mean']):
@@ -291,7 +291,7 @@ class DataQualityChecker:
                         "test_mean": test_stats['mean'],
                         "difference": mean_diff
                     })
-                    
+
         return differences
 ```
 
@@ -300,29 +300,29 @@ class DataQualityChecker:
 class SubmissionValidator:
     def __init__(self, sample_submission_path: str):
         self.sample = pd.read_csv(sample_submission_path)
-        
+
     def validate(self, submission: pd.DataFrame) -> bool:
         """提出ファイルの形式をチェック"""
         issues = []
-        
+
         # カラム名チェック
         if list(submission.columns) != list(self.sample.columns):
             issues.append(f"カラム名不一致: {submission.columns} vs {self.sample.columns}")
-            
+
         # 行数チェック
         if len(submission) != len(self.sample):
             issues.append(f"行数不一致: {len(submission)} vs {len(self.sample)}")
-            
+
         # ID順序チェック
         id_col = submission.columns[0]
         if not submission[id_col].equals(self.sample[id_col]):
             issues.append("IDの順序が異なります")
-            
+
         # 予測値の範囲チェック（0-1の確率値の場合）
         pred_col = submission.columns[1]
         if submission[pred_col].min() < 0 or submission[pred_col].max() > 1:
             issues.append(f"予測値が0-1の範囲外: [{submission[pred_col].min()}, {submission[pred_col].max()}]")
-            
+
         if issues:
             print("❌ 提出ファイルに問題があります:")
             for issue in issues:
@@ -338,8 +338,8 @@ class SubmissionValidator:
 class ModelComparer:
     def __init__(self):
         self.results = []
-        
-    def add_result(self, model_name: str, cv_scores: List[float], 
+
+    def add_result(self, model_name: str, cv_scores: List[float],
                    train_time: float, predict_time: float):
         """モデル結果を追加"""
         self.results.append({
@@ -350,12 +350,12 @@ class ModelComparer:
             "train_time": train_time,
             "predict_time": predict_time
         })
-        
+
     def show_comparison(self):
         """モデル比較表を表示"""
         df = pd.DataFrame(self.results)
         df = df.sort_values("cv_mean", ascending=False)
-        
+
         print("\n📊 モデル比較結果:")
         print("=" * 80)
         for _, row in df.iterrows():
@@ -375,18 +375,18 @@ class KaggleHelper:
     def __init__(self):
         self.api = KaggleApi()
         self.api.authenticate()
-        
+
     def download_competition_data(self, competition: str, path: str = "data/raw"):
         """コンペデータをダウンロード"""
         os.makedirs(path, exist_ok=True)
         self.api.competition_download_files(competition, path=path, unzip=True)
         print(f"✅ データダウンロード完了: {path}")
-        
+
     def submit_prediction(self, file_path: str, competition: str, message: str):
         """予測を提出"""
         self.api.competition_submit(file_path, message, competition)
         print(f"📤 提出完了: {message}")
-        
+
     def get_leaderboard_position(self, competition: str):
         """現在の順位を取得"""
         leaderboard = self.api.competition_leaderboard_download(competition)
@@ -400,16 +400,16 @@ from tqdm import tqdm
 class ProgressLogger:
     def __init__(self, webhook_notifier=None):
         self.webhook = webhook_notifier
-        
-    def iterate_with_progress(self, iterable, desc="Processing", 
+
+    def iterate_with_progress(self, iterable, desc="Processing",
                             notify_interval=0.25):
         """進捗バー付きイテレータ（定期的にWebhook通知も送信）"""
         total = len(iterable)
         last_notified = 0
-        
+
         for i, item in enumerate(tqdm(iterable, desc=desc)):
             yield item
-            
+
             # 25%ごとにWebhook通知
             progress = (i + 1) / total
             if progress >= last_notified + notify_interval:
@@ -497,8 +497,8 @@ if args.ensemble:
 ```python
 # K-Fold CVでより安定した評価
 from sklearn.model_selection import StratifiedKFold
-cv_scores = cross_val_score(model, X_train_features, y_train, 
-                           cv=StratifiedKFold(n_splits=5), 
+cv_scores = cross_val_score(model, X_train_features, y_train,
+                           cv=StratifiedKFold(n_splits=5),
                            scoring='accuracy')
 ```
 
@@ -590,7 +590,7 @@ class WorkflowTimeTracker:
     def __init__(self, db_path: str = "workflow_times.json"):
         self.db_path = db_path
         self.data = self._load_data()
-        
+
     def _load_data(self) -> Dict:
         """Load existing data from JSON file"""
         if os.path.exists(self.db_path):
@@ -600,64 +600,64 @@ class WorkflowTimeTracker:
             except json.JSONDecodeError:
                 return {"workflows": {}}
         return {"workflows": {}}
-    
+
     def _save_data(self):
         """Save data to JSON file"""
         with open(self.db_path, 'w') as f:
             json.dump(self.data, f, indent=2, ensure_ascii=False)
-    
+
     def start_workflow(self, workflow_name: str) -> float:
         """Start tracking a workflow execution"""
         start_time = time.time()
-        
+
         # Get estimated completion time
         estimated_duration = self.get_estimated_duration(workflow_name)
-        
+
         if estimated_duration:
             estimated_end = datetime.now() + timedelta(seconds=estimated_duration)
             print(f"🚀 Starting workflow: {workflow_name}")
             print(f"⏱️  Estimated completion: {estimated_end.strftime('%H:%M:%S')} ({int(estimated_duration)}s)")
         else:
             print(f"🚀 Starting workflow: {workflow_name} (first run, no estimate available)")
-            
+
         return start_time
-    
+
     def end_workflow(self, workflow_name: str, start_time: float):
         """End tracking and save the execution time"""
         duration = time.time() - start_time
-        
+
         # Initialize workflow data if not exists
         if workflow_name not in self.data["workflows"]:
             self.data["workflows"][workflow_name] = {
                 "executions": [],
                 "statistics": {}
             }
-        
+
         # Add new execution record
         execution = {
             "timestamp": datetime.now().isoformat(),
             "duration": duration
         }
-        
+
         self.data["workflows"][workflow_name]["executions"].append(execution)
-        
+
         # Keep only last 100 executions to prevent file bloat
         self.data["workflows"][workflow_name]["executions"] = \
             self.data["workflows"][workflow_name]["executions"][-100:]
-        
+
         # Update statistics
         self._update_statistics(workflow_name)
-        
+
         # Save to file
         self._save_data()
-        
+
         print(f"✅ Workflow completed in {duration:.2f}s")
-        
+
     def _update_statistics(self, workflow_name: str):
         """Update statistics for a workflow"""
         executions = self.data["workflows"][workflow_name]["executions"]
         durations = [e["duration"] for e in executions]
-        
+
         if durations:
             stats = {
                 "average": statistics.mean(durations),
@@ -666,36 +666,36 @@ class WorkflowTimeTracker:
                 "max": max(durations),
                 "count": len(durations)
             }
-            
+
             # Add standard deviation if we have enough samples
             if len(durations) >= 2:
                 stats["std_dev"] = statistics.stdev(durations)
-            
+
             self.data["workflows"][workflow_name]["statistics"] = stats
-    
+
     def get_estimated_duration(self, workflow_name: str) -> Optional[float]:
         """Get estimated duration based on historical data"""
         if workflow_name not in self.data["workflows"]:
             return None
-            
+
         stats = self.data["workflows"][workflow_name].get("statistics", {})
-        
+
         if not stats:
             return None
-        
+
         # Use weighted average of mean and median for more stable estimates
         if "median" in stats and "average" in stats:
             # Give more weight to median as it's less affected by outliers
             return (stats["median"] * 0.7 + stats["average"] * 0.3)
-        
+
         return stats.get("average")
-    
+
     def get_workflow_stats(self, workflow_name: str) -> Optional[Dict]:
         """Get statistics for a specific workflow"""
         if workflow_name in self.data["workflows"]:
             return self.data["workflows"][workflow_name]["statistics"]
         return None
-    
+
     def list_workflows(self) -> List[str]:
         """List all tracked workflows"""
         return list(self.data["workflows"].keys())
@@ -707,11 +707,11 @@ class WorkflowTimer:
         self.tracker = tracker
         self.workflow_name = workflow_name
         self.start_time = None
-        
+
     def __enter__(self):
         self.start_time = self.tracker.start_workflow(self.workflow_name)
         return self
-        
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         if self.start_time:
             self.tracker.end_workflow(self.workflow_name, self.start_time)
@@ -720,18 +720,18 @@ class WorkflowTimer:
 # Example usage
 def main():
     tracker = WorkflowTimeTracker()
-    
+
     # Method 1: Using context manager
     with WorkflowTimer(tracker, "data_processing"):
         # Your workflow code here
         time.sleep(2)  # Simulate work
-    
+
     # Method 2: Manual tracking
     start = tracker.start_workflow("file_upload")
     # Your workflow code here
     time.sleep(1)  # Simulate work
     tracker.end_workflow("file_upload", start)
-    
+
     # Get statistics
     stats = tracker.get_workflow_stats("data_processing")
     if stats:
@@ -998,7 +998,7 @@ DESCRIBE playground_series_s5e7.train;
 
 ### playground_series_s5e7 スキーマ
 - `train`: 18,524行
-- `test`: 6,175行  
+- `test`: 6,175行
 - `sample_submission`: 6,175行
 
 ### cmi_detect_behavior_with_sensor_data スキーマ
@@ -1015,7 +1015,7 @@ DESCRIBE playground_series_s5e7.train;
    ```bash
    # ディレクトリの存在確認
    make status
-   
+
    # 正しいパスを設定
    # Makefile内の KAGGLE_DATA_DIR 変数を確認
    ```
@@ -1167,7 +1167,7 @@ for model in models:
 X_test_processed = preprocessor.transform(test_df.drop(columns=['id']))
 X_test_features = feature_engineer.pipeline.transform(X_test_processed)
 
-predictions = {name: model.predict(X_test_features) 
+predictions = {name: model.predict(X_test_features)
                for name, model in trained_models.items()}
 
 submission_gen = SubmissionGenerator()
@@ -1459,13 +1459,13 @@ MIT License
   # 包括的分析 (修正が必要)
   python3 src/analysis/comprehensive_analysis.py
 
-  # データ拡張 (imblearn要インストール)  
+  # データ拡張 (imblearn要インストール)
   python3 scripts/data_augmentation.py
 
   現在のベストスコア: 0.9680 (最適化設定)
 
 
-wsl@DESKTOP-M40H3KM:~/dev/my-study/ml/solid-ml-stack-s5e7$ 
+wsl@DESKTOP-M40H3KM:~/dev/my-study/ml/solid-ml-stack-s5e7$
 
 
 1058位で2240チーム中だと上位47%くらいですね！銅メダルは通常上位10%くらいなので、まだ改善の余地がありますね。
@@ -1490,4 +1490,3 @@ wsl@DESKTOP-M40H3KM:~/dev/my-study/ml/solid-ml-stack-s5e7$
   4. 高度なアンサンブル
   - ブレンディング
   - 複数レベルのスタッキング
-  

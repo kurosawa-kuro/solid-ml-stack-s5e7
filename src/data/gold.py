@@ -5,10 +5,11 @@ Model-Ready Data for ML Training
 
 # type: ignore
 
-from typing import Tuple, List, Optional, Any
-import pandas as pd
-import numpy as np
+from typing import Any, List, Optional, Tuple
+
 import duckdb
+import numpy as np
+import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 DB_PATH = "/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb"

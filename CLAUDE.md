@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 【PROJECT OVERVIEW】Kaggle S5E7 Personality Prediction
 - **Competition**: https://www.kaggle.com/competitions/playground-series-s5e7/overview
-- **Problem**: Binary classification (Introvert vs Extrovert) 
+- **Problem**: Binary classification (Introvert vs Extrovert)
 - **Metric**: Accuracy
 - **Current Ranking**: 1182/2749 teams (43.0% percentile)
 - **Best Score**: 0.974898
@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Target Structure (To Be Built):
 ├── src/
 │   ├── data.py          # DuckDB data loading
-│   ├── features.py      # Feature engineering  
+│   ├── features.py      # Feature engineering
 │   ├── models.py        # LightGBM, XGBoost, CatBoost
 │   ├── validation.py    # Cross-validation
 │   ├── ensemble.py      # Model combination
@@ -38,12 +38,12 @@ Target Structure (To Be Built):
 
 ### Implementation Strategy
 1. **Phase 1**: Simple LightGBM baseline (target: 0.975+)
-2. **Phase 2**: Add XGBoost/CatBoost + feature engineering  
+2. **Phase 2**: Add XGBoost/CatBoost + feature engineering
 3. **Phase 3**: Ensemble optimization (target: 0.976518+ for bronze)
 
 ## 【DATA MANAGEMENT】DuckDB Ready
 - **Database Path**: `/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb`
-- **Schema**: `playground_series_s5e7` 
+- **Schema**: `playground_series_s5e7`
 - **Tables**: `train`, `test`, `sample_submission`
 - **Target Column**: `Personality` (Introvert/Extrovert)
 - **ID Column**: `id`
@@ -65,7 +65,7 @@ test = conn.execute("SELECT * FROM playground_series_s5e7.test").df()
 
 ### Currently Available (Makefile)
 ```bash
-make install              # Install dependencies  
+make install              # Install dependencies
 make dev-install         # Install with dev tools
 make setup               # Create directory structure
 make quick-test          # Quick single model test
@@ -86,7 +86,7 @@ make submit             # Generate submission file
 
 # Individual model tests
 make model-lgb          # LightGBM only
-make model-xgb          # XGBoost only  
+make model-xgb          # XGBoost only
 make model-cat          # CatBoost only
 ```
 
@@ -95,14 +95,14 @@ make model-cat          # CatBoost only
 ### Installation (pyproject.toml configured)
 ```bash
 pip install -e .                    # Basic ML dependencies
-pip install -e .[dev]              # + development tools  
+pip install -e .[dev]              # + development tools
 pip install -e .[optimization]     # + Optuna for tuning
 pip install -e .[visualization]    # + plotting libraries
 ```
 
 ### Core Dependencies
 - **Data**: pandas, numpy, duckdb
-- **Models**: scikit-learn, xgboost, lightgbm, catboost  
+- **Models**: scikit-learn, xgboost, lightgbm, catboost
 - **Optimization**: optuna
 - **Development**: pytest, black, flake8, mypy
 - **Python**: 3.8+
@@ -117,7 +117,7 @@ pip install -e .[visualization]    # + plotting libraries
 
 ### Design Principles
 - **Keep It Simple**: Single-file modules, no over-engineering
-- **Leak Prevention**: Proper CV-aware preprocessing  
+- **Leak Prevention**: Proper CV-aware preprocessing
 - **Trust Your CV**: StratifiedKFold validation
 - **Data-Driven**: Focus on effective features only
 

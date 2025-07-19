@@ -18,7 +18,7 @@ Kaggle Playground Series Season 5, Episode 7の性格予測（内向的/外向�
 
 ### 3. モデル実装
 - Random Forest
-- LightGBM 
+- LightGBM
 - XGBoost
 
 ### 4. 評価システム (src/evaluation/)

@@ -1,8 +1,9 @@
-import os
 import json
-import requests
-from typing import Optional, Dict, Any, List
+import os
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import requests
 
 
 class WebhookNotifier:
@@ -58,7 +59,7 @@ class WebhookNotifier:
                 {"name": "Model", "value": model_name, "inline": True},
                 {
                     "name": "Config",
-                    "value": (f"```json\n" f"{json.dumps(config, indent=2)[:1000]}```"),
+                    "value": (f"```json\n" f"{json.dumps(config, indent=2)[: 1000]}```"),
                     "inline": False,
                 },
             ],
@@ -72,7 +73,7 @@ class WebhookNotifier:
         duration: float,
     ) -> bool:
         """Notify training completion with metrics."""
-        metrics_text = "\n".join([f"{k}: {v:.6f}" for k, v in metrics.items()])
+        metrics_text = "\n".join([f"{k}: {v: .6f}" for k, v in metrics.items()])
 
         embed = {
             "title": f"✅ Training Complete: {model_name}",
@@ -82,7 +83,7 @@ class WebhookNotifier:
                 {"name": "Model", "value": model_name, "inline": True},
                 {
                     "name": "Duration",
-                    "value": f"{duration:.2f}s",
+                    "value": f"{duration: .2f}s",
                     "inline": True,
                 },
                 {
@@ -104,7 +105,7 @@ class WebhookNotifier:
                 {"name": "Stage", "value": stage, "inline": True},
                 {
                     "name": "Error",
-                    "value": f"```\n{error[:1000]}```",
+                    "value": f"```\n{error[: 1000]}```",
                     "inline": False,
                 },
             ],
@@ -118,13 +119,13 @@ class WebhookNotifier:
         improvement: Optional[float] = None,
     ) -> bool:
         """Notify submission results."""
-        fields = [{"name": "Score", "value": f"{score:.6f}", "inline": True}]
+        fields = [{"name": "Score", "value": f"{score: .6f}", "inline": True}]
 
         if rank:
             fields.append({"name": "Rank", "value": str(rank), "inline": True})
 
         if improvement:
-            improvement_text = f"+{improvement:.6f}" if improvement > 0 else f"{improvement:.6f}"
+            improvement_text = f"+{improvement: .6f}" if improvement > 0 else f"{improvement: .6f}"
             fields.append(
                 {
                     "name": "Improvement",

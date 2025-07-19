@@ -6,12 +6,12 @@ store them in JSON format, and predict completion times for future runs.
 """
 
 import json
-import time
 import os
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional
 import statistics
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Dict, List, Optional
 
 
 class WorkflowTimeTracker:
@@ -61,7 +61,7 @@ class WorkflowTimeTracker:
         if estimated_duration:
             estimated_end = datetime.now() + timedelta(seconds=estimated_duration)
             print(f"🚀 Starting workflow: {workflow_name}")
-            print(f"⏱️  Estimated completion: {estimated_end.strftime('%H:%M:%S')} " f"({int(estimated_duration)}s)")
+            print(f"⏱️  Estimated completion: {estimated_end.strftime('%H:%M: %S')} " f"({int(estimated_duration)}s)")
         else:
             print(f"🚀 Starting workflow: {workflow_name} " "(first run, no estimate available)")
 
@@ -100,7 +100,7 @@ class WorkflowTimeTracker:
         # Save to file
         self._save_data()
 
-        print(f"✅ Workflow completed in {duration:.2f}s")
+        print(f"✅ Workflow completed in {duration: .2f}s")
 
     def _update_statistics(self, workflow_name: str) -> None:
         """Update statistics for a workflow.
@@ -185,12 +185,12 @@ class WorkflowTimeTracker:
             stats = self.get_workflow_stats(workflow_name)
             if stats:
                 print(f"\n{workflow_name}:")
-                print(f"  Average: {stats.get('average', 0):.2f}s")
-                print(f"  Median: {stats.get('median', 0):.2f}s")
-                print(f"  Range: {stats.get('min', 0):.2f}s - " f"{stats.get('max', 0):.2f}s")
+                print(f"  Average: {stats.get('average', 0): .2f}s")
+                print(f"  Median: {stats.get('median', 0): .2f}s")
+                print(f"  Range: {stats.get('min', 0): .2f}s - " f"{stats.get('max', 0): .2f}s")
                 print(f"  Runs: {stats.get('count', 0)}")
                 if "std_dev" in stats:
-                    print(f"  Std Dev: {stats.get('std_dev', 0):.2f}s")
+                    print(f"  Std Dev: {stats.get('std_dev', 0): .2f}s")
 
     def clear_workflow_data(self, workflow_name: str) -> bool:
         """Clear data for a specific workflow.

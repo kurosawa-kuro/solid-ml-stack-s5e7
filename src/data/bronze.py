@@ -4,8 +4,9 @@ Bronze Level Data Management
 """
 
 from typing import Tuple
-import pandas as pd
+
 import duckdb
+import pandas as pd
 
 DB_PATH = "/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.duckdb"
 
