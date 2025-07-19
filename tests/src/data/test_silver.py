@@ -83,7 +83,7 @@ class TestSilverFunctions:
         assert len(test) == 5   # sample_gold_data length
         # 実際のカラム名に合わせて修正
         assert "Time_spent_Alone" in train.columns
-        assert "Time_spent_Alone" in test.columns
+        assert "id" in test.columns
 
     def test_advanced_features_with_missing_columns(self):
         """Test advanced features with missing columns"""

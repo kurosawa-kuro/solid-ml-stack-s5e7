@@ -275,14 +275,24 @@ def get_ml_ready_data(df: pd.DataFrame, target_col: str = "Personality") -> Tupl
     
     # ターゲット列を分離
     if f"{target_col}_encoded" in model_data.columns:
-        y = model_data[f"{target_col}_encoded"]
+        # DataFrameの真偽値評価を避けるため、明示的にSeriesとして取得
+        target_series = model_data[f"{target_col}_encoded"]
+        if isinstance(target_series, pd.DataFrame):
+            # DataFrameの場合は最初の列を使用
+            target_series = target_series.iloc[:, 0]
+        y = pd.Series(target_series.astype('int32'), index=model_data.index)
         # ターゲット列を除外した特徴量
         feature_cols = [col for col in model_data.columns if col != f"{target_col}_encoded"]
         X = model_data[feature_cols]
     else:
         # エンコードされていない場合は元のターゲット列を使用
         if target_col in model_data.columns:
-            y = model_data[target_col]
+            # ターゲット列を数値型に変換
+            target_series = model_data[target_col]
+            if isinstance(target_series, pd.DataFrame):
+                # DataFrameの場合は最初の列を使用
+                target_series = target_series.iloc[:, 0]
+            y = pd.Series(pd.Categorical(target_series).codes.astype('int32'), index=model_data.index)
             feature_cols = [col for col in model_data.columns if col != target_col]
             X = model_data[feature_cols]
         else:
