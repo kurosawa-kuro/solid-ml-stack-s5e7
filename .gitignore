@@ -209,3 +209,5 @@ __marimo__/
 # Data files
 data/kaggle_datasets.duckdb
 *.duckdb
+outputs/logs/
+outputs/models/
