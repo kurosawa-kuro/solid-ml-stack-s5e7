@@ -139,6 +139,12 @@ def prepare_model_data(
     # データクリーニング
     df = clean_and_validate_features(df)
 
+    # 文字列カラムのエンコーディング（元のカラムは保持）
+    for col in df.columns:
+        if df[col].dtype == 'object' and col != target_col:
+            # カテゴリカルエンコーディング（元のカラムは保持）
+            df[f"{col}_encoded"] = pd.Categorical(df[col]).codes.astype('int32')
+
     # 特徴量選択
     if feature_cols is None:
         if auto_select and target_col and target_col in df.columns:
@@ -179,6 +185,10 @@ def prepare_model_data(
             # 多項式特徴量も含める（存在する場合）
             poly_features = [col for col in df.columns if col.startswith("poly_")]
             default_features.extend(poly_features)
+
+            # エンコードされた特徴量も含める（存在する場合）
+            encoded_features = [col for col in df.columns if col.endswith("_encoded")]
+            default_features.extend(encoded_features)
 
             selected_features = default_features
 
