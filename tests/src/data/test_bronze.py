@@ -7,7 +7,16 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from src.data.bronze import basic_features, load_data, quick_preprocess
+from src.data.bronze import (
+    basic_features, 
+    load_data, 
+    quick_preprocess,
+    validate_data_quality,
+    advanced_missing_strategy,
+    encode_categorical_robust,
+    winsorize_outliers,
+    create_bronze_tables
+)
 
 
 class TestBronzeData:
@@ -96,3 +105,99 @@ class TestBronzeData:
         # Should not fail and return original data
         assert len(result) == 3
         assert "other_column" in result.columns
+
+    def test_validate_data_quality(self):
+        """Test data quality validation"""
+        df = pd.DataFrame({
+            "Time_spent_Alone": [1.0, 12.0, 25.0],  # One value > 24hrs
+            "Social_event_attendance": [2.0, 3.0, -1.0],  # One negative
+            "Stage_fear": ["Yes", "No", "Yes"],
+            "Drained_after_socializing": ["No", "Yes", "No"]
+        })
+        
+        result = validate_data_quality(df)
+        
+        assert "type_validation" in result
+        assert "range_validation" in result
+        assert result["type_validation"]["Time_spent_Alone"] == True
+        assert result["range_validation"]["Time_spent_Alone"]["within_24hrs"] == False
+        assert result["range_validation"]["Social_event_attendance"]["non_negative"] == False
+
+    def test_encode_categorical_robust(self):
+        """Test robust categorical encoding"""
+        df = pd.DataFrame({
+            "Stage_fear": ["YES", "no", "Yes", "NO", None],
+            "Drained_after_socializing": ["yes", "NO", "Yes", "no", None]
+        })
+        
+        result = encode_categorical_robust(df)
+        
+        # Check non-null values
+        assert result["Stage_fear"].iloc[:4].tolist() == [1.0, 0.0, 1.0, 0.0]
+        assert result["Drained_after_socializing"].iloc[:4].tolist() == [1.0, 0.0, 1.0, 0.0]
+        
+        # Check null handling (NaN != None in pandas)
+        assert pd.isna(result["Stage_fear"].iloc[4])
+        assert pd.isna(result["Drained_after_socializing"].iloc[4])
+        
+        assert result["Stage_fear"].dtype == "float64"
+
+    def test_advanced_missing_strategy(self):
+        """Test missing value strategy with flags"""
+        df = pd.DataFrame({
+            "Stage_fear": ["Yes", None, "No"],
+            "Going_outside": [1.0, None, 3.0],
+            "Time_spent_Alone": [2.0, 4.0, None]
+        })
+        
+        result = advanced_missing_strategy(df)
+        
+        assert "Stage_fear_missing" in result.columns
+        assert "Going_outside_missing" in result.columns
+        assert "Time_spent_Alone_missing" in result.columns
+        assert result["Stage_fear_missing"].tolist() == [0, 1, 0]
+        assert result["Going_outside_missing"].tolist() == [0, 1, 0]
+        assert result["Time_spent_Alone_missing"].tolist() == [0, 0, 1]
+
+    def test_winsorize_outliers(self):
+        """Test outlier winsorization"""
+        df = pd.DataFrame({
+            "Time_spent_Alone": [1.0, 2.0, 3.0, 100.0],  # 100.0 is outlier
+            "Social_event_attendance": [1.0, 2.0, 3.0, 4.0]
+        })
+        
+        result = winsorize_outliers(df, percentile=0.25)  # Aggressive clipping for test
+        
+        # Check that extreme values are clipped
+        assert result["Time_spent_Alone"].max() < 100.0
+        assert result["Time_spent_Alone"].min() >= 1.0
+
+    @patch("src.data.bronze.duckdb.connect")
+    def test_create_bronze_tables(self, mock_connect):
+        """Test bronze table creation"""
+        mock_conn = MagicMock()
+        mock_connect.return_value = mock_conn
+        
+        # Mock load_data to return test data
+        with patch("src.data.bronze.load_data") as mock_load:
+            mock_train = pd.DataFrame({
+                "Time_spent_Alone": [1.0, 2.0, 3.0],
+                "Stage_fear": ["Yes", "No", "Yes"]
+            })
+            mock_test = pd.DataFrame({
+                "Time_spent_Alone": [4.0, 5.0, 6.0]
+            })
+            mock_load.return_value = (mock_train, mock_test)
+            
+            create_bronze_tables()
+            
+            # Verify schema creation
+            mock_conn.execute.assert_any_call("CREATE SCHEMA IF NOT EXISTS bronze")
+            
+            # Verify table drops
+            mock_conn.execute.assert_any_call("DROP TABLE IF EXISTS bronze.train")
+            mock_conn.execute.assert_any_call("DROP TABLE IF EXISTS bronze.test")
+            
+            # Verify table creation
+            mock_conn.execute.assert_any_call("CREATE TABLE bronze.train AS SELECT * FROM train_bronze_df")
+            mock_conn.execute.assert_any_call("CREATE TABLE bronze.test AS SELECT * FROM test_bronze_df")

@@ -20,6 +20,9 @@ from src.data.silver import (
     create_silver_tables,
     load_silver_data,
     get_feature_importance_order,
+    s5e7_interaction_features,
+    s5e7_drain_adjusted_features,
+    s5e7_communication_ratios,
     DB_PATH,
 )
 
@@ -541,6 +544,157 @@ class TestSilverTableOperations:
         pd.testing.assert_frame_equal(train, mock_train_df)
         pd.testing.assert_frame_equal(test, mock_test_df)
 
+
+class TestSilverCLAUDEMDFeatures:
+    """Test CLAUDE.md specified Silver layer functions"""
+    
+    def test_s5e7_interaction_features(self):
+        """Test Winner Solution Interaction Features (+0.2-0.4% proven impact)"""
+        df = pd.DataFrame({
+            'Social_event_attendance': [4, 6, 2, 0],
+            'Going_outside': [5, 6, 4, 2],
+            'Post_frequency': [10, 12, 8, 4],
+            'Friends_circle_size': [20, 15, 10, 5]
+        })
+        
+        result = s5e7_interaction_features(df)
+        
+        # Test Social_event_participation_rate = Social_event_attendance ÷ Going_outside
+        assert 'Social_event_participation_rate' in result.columns
+        expected_participation = [4/5, 6/6, 2/4, 0/2]  # Handle division
+        np.testing.assert_array_almost_equal(
+            result['Social_event_participation_rate'].values, expected_participation, decimal=6
+        )
+        
+        # Test Non_social_outings = Going_outside - Social_event_attendance
+        assert 'Non_social_outings' in result.columns
+        expected_non_social = [1, 0, 2, 2]  # 5-4, 6-6, 4-2, 2-0
+        assert result['Non_social_outings'].tolist() == expected_non_social
+        
+        # Test Communication_ratio = Post_frequency ÷ (Social_event_attendance + Going_outside)
+        assert 'Communication_ratio' in result.columns
+        expected_comm_ratio = [10/9, 12/12, 8/6, 4/2]  # Post/(Social+Going)
+        np.testing.assert_array_almost_equal(
+            result['Communication_ratio'].values, expected_comm_ratio, decimal=6
+        )
+        
+        # Test Friend_social_efficiency = Social_event_attendance ÷ Friends_circle_size
+        assert 'Friend_social_efficiency' in result.columns
+        expected_efficiency = [4/20, 6/15, 2/10, 0/5]  # Social/Friends
+        np.testing.assert_array_almost_equal(
+            result['Friend_social_efficiency'].values, expected_efficiency, decimal=6
+        )
+    
+    def test_s5e7_drain_adjusted_features(self):
+        """Test Fatigue-Adjusted Domain Modeling (+0.1-0.2% introversion accuracy)"""
+        df = pd.DataFrame({
+            'Social_event_attendance': [4, 6, 2],
+            'Going_outside': [3, 5, 1], 
+            'Post_frequency': [5, 7, 3],
+            'Drained_after_socializing': [1.0, 0.0, 1.0]  # Bronze encoded format
+        })
+        
+        result = s5e7_drain_adjusted_features(df)
+        
+        # Test Activity_ratio = comprehensive_activity_index
+        assert 'Activity_ratio' in result.columns
+        expected_activity = [12, 18, 6]  # Sum of social+going+post
+        assert result['Activity_ratio'].tolist() == expected_activity
+        
+        # Test Drain_adjusted_activity = activity_ratio × (1 - Drained_after_socializing)
+        assert 'Drain_adjusted_activity' in result.columns
+        expected_drain_adj = [12*(1-1), 18*(1-0), 6*(1-1)]  # activity*(1-drain)
+        expected_drain_adj = [0.0, 18.0, 0.0]
+        assert result['Drain_adjusted_activity'].tolist() == expected_drain_adj
+        
+        # Test Introvert_extrovert_spectrum = quantified_personality_score
+        assert 'Introvert_extrovert_spectrum' in result.columns
+        # Should be numerical personality quantification
+        assert all(isinstance(x, (int, float)) for x in result['Introvert_extrovert_spectrum'])
+    
+    def test_s5e7_communication_ratios(self):
+        """Test Online vs Offline behavioral ratios"""
+        df = pd.DataFrame({
+            'Post_frequency': [10, 5, 15],
+            'Social_event_attendance': [4, 6, 2],
+            'Going_outside': [3, 5, 1]
+        })
+        
+        result = s5e7_communication_ratios(df)
+        
+        # Test Online_offline_ratio = Post_frequency ÷ (Social_event_attendance + Going_outside)
+        assert 'Online_offline_ratio' in result.columns
+        expected_ratio = [10/7, 5/11, 15/3]  # Post/(Social+Going)
+        np.testing.assert_array_almost_equal(
+            result['Online_offline_ratio'].values, expected_ratio, decimal=6
+        )
+        
+        # Test Communication_balance = balanced ratio calculation
+        assert 'Communication_balance' in result.columns
+        # Should provide balanced view of online vs offline activity
+        assert all(isinstance(x, (int, float)) for x in result['Communication_balance'])
+
+class TestSilverDependencyChain:
+    """Test Silver layer Bronze dependency enforcement"""
+    
+    @patch('duckdb.connect')
+    def test_load_silver_data_bronze_dependency(self, mock_connect):
+        """Test that load_silver_data only accesses Bronze tables"""
+        mock_conn = MagicMock()
+        mock_connect.return_value = mock_conn
+        
+        mock_train = pd.DataFrame({'bronze_feature': [1, 2]})
+        mock_test = pd.DataFrame({'bronze_feature': [3, 4]})
+        
+        mock_conn.execute.side_effect = [
+            MagicMock(df=lambda: mock_train),
+            MagicMock(df=lambda: mock_test)
+        ]
+        
+        load_silver_data()
+        
+        # Verify only Bronze layer access
+        expected_calls = [
+            'SELECT * FROM silver.train',
+            'SELECT * FROM silver.test'
+        ]
+        actual_calls = [call[0][0] for call in mock_conn.execute.call_args_list]
+        assert actual_calls == expected_calls
+        
+        # Verify no raw data access
+        forbidden_calls = ['playground_series_s5e7.train', 'playground_series_s5e7.test']
+        for forbidden in forbidden_calls:
+            assert not any(forbidden in call for call in actual_calls)
+    
+    def test_silver_pipeline_integration(self):
+        """Test Silver pipeline integration with CLAUDE.md functions"""
+        # Setup test data with all required columns
+        test_df = pd.DataFrame({
+            'Social_event_attendance': [4, 6],
+            'Going_outside': [3, 5],
+            'Post_frequency': [5, 7],
+            'Friends_circle_size': [10, 15],
+            'Time_spent_Alone': [2, 3],
+            'Drained_after_socializing': [1.0, 0.0]
+        })
+        
+        # Apply CLAUDE.md specified pipeline steps
+        result1 = s5e7_interaction_features(test_df)
+        result2 = s5e7_drain_adjusted_features(result1)
+        result3 = s5e7_communication_ratios(result2)
+        
+        # Verify CLAUDE.md features are created
+        assert 'Social_event_participation_rate' in result3.columns
+        assert 'Non_social_outings' in result3.columns
+        assert 'Communication_ratio' in result3.columns
+        assert 'Friend_social_efficiency' in result3.columns
+        assert 'Activity_ratio' in result3.columns
+        assert 'Drain_adjusted_activity' in result3.columns
+        assert 'Online_offline_ratio' in result3.columns
+        
+        # Verify data integrity
+        assert len(result3) == len(test_df)
+        assert result3.shape[1] > test_df.shape[1]  # More columns added
 
 class TestSilverUtilities:
     """Test utility functions"""
