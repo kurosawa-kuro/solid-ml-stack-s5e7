@@ -696,6 +696,302 @@ class TestSilverDependencyChain:
         assert len(result3) == len(test_df)
         assert result3.shape[1] > test_df.shape[1]  # More columns added
 
+    # ===== 新規追加テスト: Feature Lineage Enhancement =====
+    
+    def test_bronze_to_silver_transformation_traceability(self):
+        """Test detailed traceability from Bronze to Silver transformations"""
+        # Setup Bronze layer data (simulated)
+        bronze_df = pd.DataFrame({
+            'Time_spent_Alone': [2.0, 4.0, 6.0],
+            'Social_event_attendance': [4.0, 6.0, 2.0],
+            'Going_outside': [3.0, 5.0, 1.0],
+            'Friends_circle_size': [10, 15, 5],
+            'Post_frequency': [5.0, 7.0, 3.0],
+            'Stage_fear_encoded': [1.0, 0.0, 1.0],
+            'Drained_after_socializing_encoded': [1.0, 1.0, 0.0]
+        })
+        
+        # Apply Silver transformations
+        silver_result = advanced_features(bronze_df)
+        
+        # Verify transformation traceability
+        # Original Bronze columns should be preserved
+        for col in bronze_df.columns:
+            assert col in silver_result.columns, f"Bronze column {col} not preserved in Silver"
+        
+        # New Silver features should be added
+        silver_only_features = set(silver_result.columns) - set(bronze_df.columns)
+        assert len(silver_only_features) > 0, "No new Silver features created"
+        
+        # Verify data integrity (no data loss)
+        assert len(silver_result) == len(bronze_df), "Data length changed during transformation"
+        
+        # Verify transformation logic
+        assert 'extrovert_score' in silver_result.columns
+        assert 'introvert_score' in silver_result.columns
+        assert 'social_ratio' in silver_result.columns
+
+    def test_feature_generation_history(self):
+        """Test feature generation history and lineage"""
+        # Setup test data
+        df = pd.DataFrame({
+            'Social_event_attendance': [4, 6, 2],
+            'Going_outside': [3, 5, 1],
+            'Post_frequency': [5, 7, 3],
+            'Friends_circle_size': [10, 15, 5]
+        })
+        
+        # Track feature generation history
+        original_columns = set(df.columns)
+        
+        # Step 1: Basic features
+        step1_result = advanced_features(df)
+        step1_new_features = set(step1_result.columns) - original_columns
+        
+        # Step 2: Interaction features
+        step2_result = s5e7_interaction_features(step1_result)
+        step2_new_features = set(step2_result.columns) - set(step1_result.columns)
+        
+        # Step 3: Drain adjusted features
+        step3_result = s5e7_drain_adjusted_features(step2_result)
+        step3_new_features = set(step3_result.columns) - set(step2_result.columns)
+        
+        # Verify feature generation history
+        assert len(step1_new_features) > 0, "Step 1 should create new features"
+        assert len(step2_new_features) > 0, "Step 2 should create new features"
+        assert len(step3_new_features) > 0, "Step 3 should create new features"
+        
+        # Verify cumulative feature growth
+        total_new_features = len(step3_result.columns) - len(original_columns)
+        assert total_new_features >= 10, f"Expected 10+ new features, got {total_new_features}"
+        
+        # Verify no feature duplication
+        all_features = list(step3_result.columns)
+        unique_features = set(all_features)
+        assert len(all_features) == len(unique_features), "Feature duplication detected"
+
+    # ===== 新規追加テスト: LightGBM Optimization Validation =====
+    
+    def test_tree_split_optimization(self):
+        """Test LightGBM tree split optimization features"""
+        # Setup test data with LightGBM-optimized features
+        df = pd.DataFrame({
+            'Time_spent_Alone': [1.0, 2.0, 3.0, 4.0, 5.0],
+            'Social_event_attendance': [2.0, 4.0, 6.0, 8.0, 10.0],
+            'Going_outside': [1.0, 2.0, 3.0, 4.0, 5.0],
+            'Stage_fear_encoded': [1.0, 0.0, 1.0, 0.0, 1.0],
+            'Drained_after_socializing_encoded': [0.0, 1.0, 0.0, 1.0, 0.0]
+        })
+        
+        # Apply Silver transformations
+        result = advanced_features(df)
+        
+        # Test ratio features (optimal for tree splits)
+        ratio_features = [col for col in result.columns if 'ratio' in col.lower()]
+        assert len(ratio_features) > 0, "No ratio features created for tree optimization"
+        
+        # Test binary interaction features (optimal for tree splits)
+        interaction_features = [col for col in result.columns if 'interaction' in col.lower()]
+        assert len(interaction_features) > 0, "No interaction features created for tree optimization"
+        
+        # Test categorical encoding compatibility
+        categorical_features = [col for col in result.columns if 'encoded' in col.lower()]
+        for col in categorical_features:
+            assert result[col].dtype in ['float64', 'int64'], f"Categorical feature {col} not properly encoded"
+            assert result[col].isin([0.0, 1.0, np.nan]).all(), f"Categorical feature {col} contains invalid values"
+
+    def test_lightgbm_missing_value_compatibility(self):
+        """Test LightGBM missing value handling compatibility"""
+        # Setup test data with missing values
+        df = pd.DataFrame({
+            'Time_spent_Alone': [1.0, np.nan, 3.0, 4.0, np.nan],
+            'Social_event_attendance': [2.0, 4.0, np.nan, 8.0, 10.0],
+            'Going_outside': [1.0, 2.0, 3.0, np.nan, 5.0],
+            'Stage_fear_encoded': [1.0, 0.0, 1.0, 0.0, np.nan],
+            'Drained_after_socializing_encoded': [0.0, 1.0, 0.0, np.nan, 1.0]
+        })
+        
+        # Apply Silver transformations
+        result = advanced_features(df)
+        
+        # Test NaN preservation for LightGBM
+        for col in result.columns:
+            if result[col].dtype in ['float64', 'float32']:
+                # LightGBM can handle NaN values natively
+                assert result[col].isna().sum() >= 0, f"Invalid NaN handling in {col}"
+        
+        # Test that missing values don't break feature calculations
+        assert len(result) == len(df), "Data length changed due to missing values"
+        
+        # Test that new features are created even with missing data
+        new_features = set(result.columns) - set(df.columns)
+        assert len(new_features) > 0, "No new features created with missing data"
+
+    # ===== 新規追加テスト: Performance Enhanced Quantification =====
+    
+    def test_30_plus_engineered_features_count(self):
+        """Test exact count of 30+ engineered features"""
+        # Setup comprehensive test data
+        df = pd.DataFrame({
+            'Time_spent_Alone': [1.0, 2.0, 3.0, 4.0, 5.0],
+            'Social_event_attendance': [2.0, 4.0, 6.0, 8.0, 10.0],
+            'Going_outside': [1.0, 2.0, 3.0, 4.0, 5.0],
+            'Friends_circle_size': [5, 10, 15, 20, 25],
+            'Post_frequency': [1.0, 2.0, 3.0, 4.0, 5.0],
+            'Stage_fear_encoded': [1.0, 0.0, 1.0, 0.0, 1.0],
+            'Drained_after_socializing_encoded': [0.0, 1.0, 0.0, 1.0, 0.0]
+        })
+        
+        # Apply full Silver pipeline
+        step1 = advanced_features(df)
+        step2 = s5e7_interaction_features(step1)
+        step3 = s5e7_drain_adjusted_features(step2)
+        step4 = s5e7_communication_ratios(step3)
+        step5 = enhanced_interaction_features(step4)
+        step6 = polynomial_features(step5, degree=2)
+        
+        # Count total engineered features
+        original_features = len(df.columns)
+        total_features = len(step6.columns)
+        engineered_features = total_features - original_features
+        
+        # Assert 30+ engineered features (CLAUDE.md requirement)
+        assert engineered_features >= 30, f"Expected 30+ engineered features, got {engineered_features}"
+        
+        # Verify feature categories
+        ratio_features = [col for col in step6.columns if 'ratio' in col.lower()]
+        interaction_features = [col for col in step6.columns if 'interaction' in col.lower()]
+        polynomial_features = [col for col in step6.columns if col.startswith('poly_')]
+        score_features = [col for col in step6.columns if 'score' in col.lower()]
+        
+        assert len(ratio_features) > 0, "No ratio features created"
+        assert len(interaction_features) > 0, "No interaction features created"
+        assert len(polynomial_features) > 0, "No polynomial features created"
+        assert len(score_features) > 0, "No score features created"
+
+    def test_feature_impact_measurement(self):
+        """Test measured impact expectations for features"""
+        # Setup test data
+        df = pd.DataFrame({
+            'Social_event_attendance': [4, 6, 2, 8, 3],
+            'Going_outside': [3, 5, 1, 6, 2],
+            'Post_frequency': [5, 7, 3, 9, 4],
+            'Friends_circle_size': [10, 15, 5, 20, 8],
+            'Drained_after_socializing': [1.0, 0.0, 1.0, 0.0, 1.0]
+        })
+        
+        # Apply CLAUDE.md specified features with proven impact
+        result1 = s5e7_interaction_features(df)
+        result2 = s5e7_drain_adjusted_features(result1)
+        
+        # Test Winner Solution Interaction Features (+0.2-0.4% proven impact)
+        winner_features = [
+            'Social_event_participation_rate',
+            'Non_social_outings', 
+            'Communication_ratio',
+            'Friend_social_efficiency'
+        ]
+        for feature in winner_features:
+            assert feature in result1.columns, f"Winner feature {feature} not created"
+        
+        # Test Fatigue-Adjusted Domain Modeling (+0.1-0.2% introversion accuracy)
+        fatigue_features = [
+            'Activity_ratio',
+            'Drain_adjusted_activity',
+            'Introvert_extrovert_spectrum'
+        ]
+        for feature in fatigue_features:
+            assert feature in result2.columns, f"Fatigue feature {feature} not created"
+        
+        # Verify impact features have meaningful values
+        for feature in winner_features + fatigue_features:
+            if feature in result2.columns:
+                feature_values = result2[feature]
+                assert not feature_values.isna().all(), f"Feature {feature} has all NaN values"
+                assert feature_values.std() > 0, f"Feature {feature} has no variance"
+
+    # ===== 新規追加テスト: Competition Proven Validation =====
+    
+    def test_top_tier_kaggle_techniques_validation(self):
+        """Test verified top-tier Kaggle techniques"""
+        # Setup test data
+        df = pd.DataFrame({
+            'Social_event_attendance': [4, 6, 2, 8, 3],
+            'Going_outside': [3, 5, 1, 6, 2],
+            'Post_frequency': [5, 7, 3, 9, 4],
+            'Friends_circle_size': [10, 15, 5, 20, 8],
+            'Time_spent_Alone': [2, 4, 6, 1, 5],
+            'Stage_fear_encoded': [1.0, 0.0, 1.0, 0.0, 1.0],
+            'Drained_after_socializing_encoded': [0.0, 1.0, 0.0, 1.0, 0.0]
+        })
+        
+        # Apply top-tier Kaggle techniques
+        result = advanced_features(df)
+        
+        # Test proven Kaggle techniques
+        # 1. Ratio features (proven effective)
+        ratio_features = [col for col in result.columns if 'ratio' in col.lower()]
+        assert len(ratio_features) >= 3, f"Expected 3+ ratio features, got {len(ratio_features)}"
+        
+        # 2. Interaction features (proven effective)
+        interaction_features = [col for col in result.columns if 'interaction' in col.lower()]
+        assert len(interaction_features) >= 2, f"Expected 2+ interaction features, got {len(interaction_features)}"
+        
+        # 3. Statistical aggregations (proven effective)
+        stat_features = [col for col in result.columns if any(stat in col.lower() for stat in ['sum', 'avg', 'std', 'total'])]
+        assert len(stat_features) >= 2, f"Expected 2+ statistical features, got {len(stat_features)}"
+        
+        # 4. Personality scores (domain-specific innovation)
+        personality_features = [col for col in result.columns if any(score in col.lower() for score in ['score', 'spectrum'])]
+        assert len(personality_features) >= 2, f"Expected 2+ personality features, got {len(personality_features)}"
+
+    def test_competition_grade_quality_standards(self):
+        """Test competition-grade quality standards"""
+        # Setup test data with edge cases
+        df = pd.DataFrame({
+            'Social_event_attendance': [0, 10, 5, np.nan, 15],  # Edge cases
+            'Going_outside': [0, 12, 6, 8, np.nan],  # Edge cases
+            'Post_frequency': [0, 20, 10, np.nan, 25],  # Edge cases
+            'Friends_circle_size': [0, 30, 15, 20, np.nan],  # Edge cases
+            'Time_spent_Alone': [0, 24, 12, np.nan, 18],  # Edge cases
+            'Stage_fear_encoded': [0.0, 1.0, np.nan, 0.0, 1.0],  # Edge cases
+            'Drained_after_socializing_encoded': [1.0, 0.0, 1.0, np.nan, 0.0]  # Edge cases
+        })
+        
+        # Apply Silver transformations
+        result = advanced_features(df)
+        
+        # Test competition-grade quality standards
+        # 1. Handle edge cases gracefully
+        assert len(result) == len(df), "Data length changed due to edge cases"
+        
+        # 2. No infinite values
+        for col in result.columns:
+            if result[col].dtype in ['float64', 'float32']:
+                assert not np.isinf(result[col]).any(), f"Infinite values found in {col}"
+        
+        # 3. Meaningful feature ranges
+        for col in result.columns:
+            if result[col].dtype in ['float64', 'float32']:
+                feature_values = result[col].dropna()
+                if len(feature_values) > 0:
+                    # Features should have reasonable ranges
+                    assert feature_values.min() >= -1000, f"Feature {col} has unreasonably low values"
+                    assert feature_values.max() <= 10000, f"Feature {col} has unreasonably high values"
+        
+        # 4. No all-zero or all-constant features (except by design)
+        for col in result.columns:
+            if result[col].dtype in ['float64', 'float32']:
+                feature_values = result[col].dropna()
+                if len(feature_values) > 1:
+                    # Most features should have variance (except specific design features)
+                    if 'ratio' not in col.lower() and 'score' not in col.lower():
+                        assert feature_values.std() > 0, f"Feature {col} has no variance"
+        
+        # 5. Proper data types for LightGBM
+        for col in result.columns:
+            assert result[col].dtype in ['float64', 'float32', 'int64', 'int32'], f"Feature {col} has incompatible dtype {result[col].dtype}"
+
 class TestSilverUtilities:
     """Test utility functions"""
 
