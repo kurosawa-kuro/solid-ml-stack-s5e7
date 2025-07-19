@@ -99,7 +99,7 @@ def load_and_prepare_enhanced_data_light() -> tuple[np.ndarray, np.ndarray, np.n
 
         # Separate features and target
         id_cols = ["id"]
-        target_cols = ["Personality", "Personality_encoded"]
+        target_cols = ["Personality", "Personality_encoded", "Personality_encoded_1"]
 
         # Get feature columns
         feature_cols = [col for col in train_df.columns if col not in id_cols + target_cols]
@@ -111,11 +111,15 @@ def load_and_prepare_enhanced_data_light() -> tuple[np.ndarray, np.ndarray, np.n
 
         logger.info(f"Light Features: {len(feature_cols)}, Samples: {len(X_train)}")
 
-        # Quick data integrity check
-        if np.any(np.isnan(X_train)) or np.any(np.isinf(X_train)):
+        # Quick data integrity check and cleaning
+        if np.any(np.isnan(X_train)) or np.any(np.isinf(X_train)) or np.any(np.isnan(X_test)) or np.any(np.isinf(X_test)):
             logger.warning("Data has NaN/Inf values, cleaning...")
             X_train = np.nan_to_num(X_train, nan=0.0, posinf=0.0, neginf=0.0)
             X_test = np.nan_to_num(X_test, nan=0.0, posinf=0.0, neginf=0.0)
+            
+        # Ensure clean data
+        X_train = np.nan_to_num(X_train, nan=0.0, posinf=0.0, neginf=0.0)
+        X_test = np.nan_to_num(X_test, nan=0.0, posinf=0.0, neginf=0.0)
 
         logger.info(
             f"Light target distribution: Extrovert: {np.sum(y_train)}, Introvert: {len(y_train) - np.sum(y_train)}"

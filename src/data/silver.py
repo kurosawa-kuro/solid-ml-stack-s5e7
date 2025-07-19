@@ -19,6 +19,8 @@ DB_PATH = "/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.du
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore', category=FutureWarning)
 warnings.filterwarnings('ignore', category=UserWarning)
+warnings.filterwarnings('ignore', category=RuntimeWarning, message='overflow encountered in multiply')
+warnings.filterwarnings('ignore', category=RuntimeWarning, message='overflow encountered in reduce')
 
 
 def advanced_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -75,7 +77,7 @@ def advanced_features(df: pd.DataFrame) -> pd.DataFrame:
     if all(col in df.columns for col in numeric_cols):
         df["total_activity"] = df[numeric_cols].sum(axis=1)
         df["avg_activity"] = df[numeric_cols].mean(axis=1)
-        df["activity_std"] = df[numeric_cols].std(axis=1)
+        df["activity_std"] = df[numeric_cols].clip(-50, 50).std(axis=1).fillna(0)
         df["activity_min"] = df[numeric_cols].min(axis=1)
         df["activity_max"] = df[numeric_cols].max(axis=1)
         df["activity_range"] = df["activity_max"] - df["activity_min"]
@@ -112,7 +114,7 @@ def advanced_features(df: pd.DataFrame) -> pd.DataFrame:
     if extrovert_features:
         df["extrovert_score"] = df[extrovert_features].sum(axis=1)
         df["extrovert_avg"] = df[extrovert_features].mean(axis=1)
-        df["extrovert_std"] = df[extrovert_features].std(axis=1)
+        df["extrovert_std"] = df[extrovert_features].clip(-50, 50).std(axis=1).fillna(0)
 
     # 内向性スコア
     introvert_features = []
@@ -263,10 +265,21 @@ def polynomial_features(df: pd.DataFrame, degree: int = 2) -> pd.DataFrame:
             # NaNと無限値の処理
             temp_df = temp_df.fillna(0)
             temp_df = temp_df.replace([np.inf, -np.inf], 0)
+            
+            # Scale features to prevent overflow in polynomial expansion
+            temp_df = temp_df.clip(-5, 5)  # Ultra conservative clipping
+            
+            # Further scale down large values to prevent overflow
+            for col in temp_df.columns:
+                if temp_df[col].abs().max() > 3:
+                    temp_df[col] = temp_df[col] / (temp_df[col].abs().max() / 3)
 
             # PolynomialFeaturesを使用（interaction_only=Falseで二乗項も含む）
             poly = PolynomialFeatures(degree=degree, include_bias=False, interaction_only=False)
             poly_features = poly.fit_transform(temp_df)
+            
+            # Clip polynomial features to prevent overflow - ultra conservative
+            poly_features = np.clip(poly_features, -50, 50)
 
             # 特徴量名生成
             feature_names = poly.get_feature_names_out(key_features)
@@ -277,7 +290,10 @@ def polynomial_features(df: pd.DataFrame, degree: int = 2) -> pd.DataFrame:
                 if name not in original_features:
                     # 特徴量名をクリーンアップ
                     clean_name = name.replace(" ", "_").replace("^", "_pow_")
-                    df[f"poly_{clean_name}"] = poly_features[:, i]
+                    # Additional clipping for individual features
+                    feature_values = poly_features[:, i]
+                    feature_values = np.clip(feature_values, -50, 50)
+                    df[f"poly_{clean_name}"] = feature_values.astype(np.float32)
 
         except Exception as e:
             # エラーが発生した場合はログに記録して続行
@@ -296,8 +312,9 @@ def scaling_features(df: pd.DataFrame) -> pd.DataFrame:
     numeric_features = [col for col in numeric_features if col not in exclude_cols]
 
     for col in numeric_features:
-        if df[col].std() > 0:  # 分散が0でない場合のみ
-            df[f"{col}_scaled"] = (df[col] - df[col].mean()) / df[col].std()
+        col_data = df[col].clip(-100, 100)  # More conservative clipping
+        if col_data.std() > 1e-8:  # 分散が0でない場合のみ
+            df[f"{col}_scaled"] = ((col_data - col_data.mean()) / col_data.std()).clip(-5, 5).astype(np.float32)
 
     return df
 
@@ -620,20 +637,26 @@ class CVSafeTargetEncoder(BaseEstimator, TransformerMixin):
 class AdvancedStatisticalFeatures(BaseEstimator, TransformerMixin):
     """Advanced statistical and imputation features (+0.1-0.3% expected)"""
     
-    def __init__(self, n_neighbors: int = 5):
+    def __init__(self, n_neighbors: int = 3):
         self.n_neighbors = n_neighbors
         self.knn_imputer = None
         self.numeric_features = None
+        self.original_features = None
         
     def fit(self, X, y=None):
-        """Fit KNN imputer"""
-        self.numeric_features = X.select_dtypes(include=[np.number]).columns.tolist()
-        if 'id' in self.numeric_features:
-            self.numeric_features.remove('id')
+        """Fit KNN imputer only on original features"""
+        # Only apply KNN to original Bronze features, not derived polynomial features
+        original_numeric_features = [
+            'Time_spent_Alone', 'Social_event_attendance', 'Going_outside', 
+            'Friends_circle_size', 'Post_frequency'
+        ]
+        self.original_features = [f for f in original_numeric_features if f in X.columns]
         
-        if self.numeric_features:
+        if self.original_features:
             self.knn_imputer = KNNImputer(n_neighbors=self.n_neighbors)
-            self.knn_imputer.fit(X[self.numeric_features])
+            # Clip values before fitting to prevent numerical issues
+            X_clipped = X[self.original_features].clip(-100, 100)
+            self.knn_imputer.fit(X_clipped)
         
         return self
     
@@ -642,9 +665,9 @@ class AdvancedStatisticalFeatures(BaseEstimator, TransformerMixin):
         X_transformed = X.copy()
         
         # 1. Store missing indicators before imputation (bulk operation)
-        if self.knn_imputer and self.numeric_features:
+        if self.knn_imputer and self.original_features:
             missing_indicators = {}
-            for col in self.numeric_features:
+            for col in self.original_features:
                 if col in X_transformed.columns:
                     missing_indicators[f'{col}_was_missing'] = X_transformed[col].isna().astype(int)
             
@@ -652,17 +675,18 @@ class AdvancedStatisticalFeatures(BaseEstimator, TransformerMixin):
                 missing_df = pd.DataFrame(missing_indicators, index=X_transformed.index)
                 X_transformed = pd.concat([X_transformed, missing_df], axis=1)
             
-            # Apply KNN imputation
-            X_transformed[self.numeric_features] = self.knn_imputer.transform(
-                X_transformed[self.numeric_features]
-            )
+            # Apply KNN imputation only to original features with clipping
+            X_clipped = X_transformed[self.original_features].clip(-50, 50)
+            X_transformed[self.original_features] = self.knn_imputer.transform(X_clipped)
         
         # 2. Add statistical moment features (bulk operation)
-        if self.numeric_features:
-            numeric_data = X_transformed[self.numeric_features]
+        # Use only original features for statistics to prevent explosion
+        stats_features = self.original_features if self.original_features else []
+        if stats_features:
+            numeric_data = X_transformed[stats_features]
             
-            # Clip extreme values to prevent overflow
-            numeric_data_clipped = numeric_data.clip(-1e6, 1e6)
+            # Clip extreme values to prevent overflow - ultra conservative clipping
+            numeric_data_clipped = numeric_data.clip(-25, 25)
             
             statistical_features = {
                 'row_mean': numeric_data_clipped.mean(axis=1),
@@ -693,9 +717,10 @@ class AdvancedStatisticalFeatures(BaseEstimator, TransformerMixin):
             key_feature_stats = {}
             for feat in key_features:
                 if feat in X_transformed.columns:
-                    key_feature_stats[f'{feat}_zscore'] = (
-                        X_transformed[feat] - X_transformed[feat].mean()
-                    ) / (X_transformed[feat].std() + 1e-8)
+                    # Safer zscore calculation with aggressive clipping
+                    feat_data = X_transformed[feat].clip(-50, 50)
+                    zscore = (feat_data - feat_data.mean()) / (feat_data.std() + 1e-8)
+                    key_feature_stats[f'{feat}_zscore'] = zscore.clip(-5, 5)
                     
                     key_feature_stats[f'{feat}_percentile'] = X_transformed[feat].rank(pct=True)
             

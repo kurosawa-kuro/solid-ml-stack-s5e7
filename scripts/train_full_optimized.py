@@ -79,7 +79,7 @@ def load_and_prepare_enhanced_data() -> tuple[np.ndarray, np.ndarray, np.ndarray
 
         # Separate features and target
         id_cols = ["id"]
-        target_cols = ["Personality", "Personality_encoded"]
+        target_cols = ["Personality", "Personality_encoded", "Personality_encoded_1"]
 
         # Get feature columns
         feature_cols = [col for col in train_df.columns if col not in id_cols + target_cols]
