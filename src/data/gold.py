@@ -53,7 +53,7 @@ def clean_and_validate_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def select_best_features(df: pd.DataFrame, target_col: str, k: int = 30) -> List[str]:
+def select_best_features(df: pd.DataFrame, target_col: str, k: int = 30, method: str = "combined") -> List[str]:
     """統計的特徴量選択でトップK特徴量を選択"""
     # 数値特徴量のみを選択（カテゴリカル変数は除外）
     feature_cols = []
@@ -84,29 +84,42 @@ def select_best_features(df: pd.DataFrame, target_col: str, k: int = 30) -> List
     y = target_values.values
 
     try:
-        # 2つの特徴量選択手法を組み合わせ
-        # 1. F統計量ベース
-        selector_f = SelectKBest(score_func=f_classif, k=min(k, len(feature_cols)))
-        selector_f.fit(X, y)
+        if method == "statistical":
+            # F統計量ベースのみ
+            selector_f = SelectKBest(score_func=f_classif, k=min(k, len(feature_cols)))
+            selector_f.fit(X, y)
+            selected_indices = selector_f.get_support()
+            selected_features = [feature_cols[i] for i, selected in enumerate(selected_indices) if selected]
+        elif method == "mutual_info":
+            # 相互情報量ベースのみ
+            selector_mi = SelectKBest(score_func=mutual_info_classif, k=min(k, len(feature_cols)))
+            selector_mi.fit(X, y)
+            selected_indices = selector_mi.get_support()
+            selected_features = [feature_cols[i] for i, selected in enumerate(selected_indices) if selected]
+        else:
+            # デフォルト: 2つの特徴量選択手法を組み合わせ
+            # 1. F統計量ベース
+            selector_f = SelectKBest(score_func=f_classif, k=min(k, len(feature_cols)))
+            selector_f.fit(X, y)
 
-        # 2. 相互情報量ベース
-        selector_mi = SelectKBest(score_func=mutual_info_classif, k=min(k, len(feature_cols)))
-        selector_mi.fit(X, y)
+            # 2. 相互情報量ベース
+            selector_mi = SelectKBest(score_func=mutual_info_classif, k=min(k, len(feature_cols)))
+            selector_mi.fit(X, y)
 
-        # 両方の手法で上位に選ばれた特徴量を優先
-        f_scores = selector_f.scores_
-        mi_scores = selector_mi.scores_
+            # 両方の手法で上位に選ばれた特徴量を優先
+            f_scores = selector_f.scores_
+            mi_scores = selector_mi.scores_
 
-        # 正規化してスコアを結合
-        f_scores_norm = (f_scores - f_scores.min()) / (f_scores.max() - f_scores.min() + 1e-8)
-        mi_scores_norm = (mi_scores - mi_scores.min()) / (mi_scores.max() - mi_scores.min() + 1e-8)
+            # 正規化してスコアを結合
+            f_scores_norm = (f_scores - f_scores.min()) / (f_scores.max() - f_scores.min() + 1e-8)
+            mi_scores_norm = (mi_scores - mi_scores.min()) / (mi_scores.max() - mi_scores.min() + 1e-8)
 
-        combined_scores = f_scores_norm + mi_scores_norm
+            combined_scores = f_scores_norm + mi_scores_norm
 
-        # トップK特徴量のインデックス取得
-        top_indices = np.argsort(combined_scores)[-k:][::-1]
+            # トップK特徴量のインデックス取得
+            top_indices = np.argsort(combined_scores)[-k:][::-1]
 
-        selected_features = [feature_cols[i] for i in top_indices]
+            selected_features = [feature_cols[i] for i in top_indices]
 
         return selected_features
 
@@ -174,7 +187,7 @@ def prepare_model_data(
     # 使用可能な特徴量のみ選択
     available_features = [col for col in feature_cols if col in df.columns]
 
-    # 基本カラム追加（元のカラムを保持）
+    # 基本カラム（元のカラムを保持）
     model_cols = list(df.columns)  # 元のカラムをすべて保持
     
     # ターゲットエンコーディング
@@ -255,31 +268,25 @@ def load_gold_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
     return train, test
 
 
-def get_ml_ready_data(df: pd.DataFrame, target_col: str = "Personality", scale_features: bool = False) -> Tuple[pd.DataFrame, pd.Series]:
-    """Get ML-ready data with target separation"""
-    # Prepare model data
+def get_ml_ready_data(df: pd.DataFrame, target_col: str = "Personality") -> Tuple[pd.DataFrame, pd.Series]:
+    """LightGBM互換のML準備済みデータを取得"""
+    # モデルデータを準備
     model_data = prepare_model_data(df, target_col=target_col)
     
-    # Encode target if not already encoded
-    if f"{target_col}_encoded" not in model_data.columns:
-        model_data = encode_target(model_data, target_col)
-    
-    # Extract features and target
-    feature_cols = [col for col in model_data.columns 
-                   if col not in ["id", target_col, f"{target_col}_encoded"]]
-    
-    X = model_data[feature_cols]
-    y = model_data[f"{target_col}_encoded"]
-    
-    # Scale features if requested
-    if scale_features:
-        scaler = StandardScaler()
-        X_scaled = pd.DataFrame(
-            scaler.fit_transform(X),
-            columns=X.columns,
-            index=X.index
-        )
-        return X_scaled, y
+    # ターゲット列を分離
+    if f"{target_col}_encoded" in model_data.columns:
+        y = model_data[f"{target_col}_encoded"]
+        # ターゲット列を除外した特徴量
+        feature_cols = [col for col in model_data.columns if col != f"{target_col}_encoded"]
+        X = model_data[feature_cols]
+    else:
+        # エンコードされていない場合は元のターゲット列を使用
+        if target_col in model_data.columns:
+            y = model_data[target_col]
+            feature_cols = [col for col in model_data.columns if col != target_col]
+            X = model_data[feature_cols]
+        else:
+            raise ValueError(f"Target column {target_col} not found in data")
     
     return X, y
 

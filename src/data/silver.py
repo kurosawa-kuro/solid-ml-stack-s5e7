@@ -124,20 +124,25 @@ def advanced_features(df: pd.DataFrame) -> pd.DataFrame:
     if introvert_features:
         df["introvert_score"] = df[introvert_features].sum(axis=1)
         df["introvert_avg"] = df[introvert_features].mean(axis=1)
-        df["introvert_std"] = df[introvert_features].std(axis=1)
+        # std計算でNaNが発生しないように修正
+        introvert_data = df[introvert_features].fillna(0)
+        df["introvert_std"] = introvert_data.std(axis=1).fillna(0)
 
     # 複合指標
     if "extrovert_score" in df.columns and "introvert_score" in df.columns:
         df["personality_balance"] = df["extrovert_score"] - df["introvert_score"]
-        df["personality_ratio"] = df["extrovert_score"] / (df["introvert_score"] + 1e-8)
+        # 極端な値を避けるため、分母を1以上に制限
+        introvert_denominator = df["introvert_score"].clip(lower=1)
+        df["personality_ratio"] = df["extrovert_score"] / introvert_denominator
         df["personality_sum"] = df["extrovert_score"] + df["introvert_score"]
 
     # 時間関連特徴量
     if "Time_spent_Alone" in df.columns:
         df["alone_percentage"] = df["Time_spent_Alone"] / 24.0  # 24時間中の割合
         df["alone_squared"] = df["Time_spent_Alone"] ** 2
-        # 無限値を避けるため、log1pを使用
-        df["alone_log"] = np.log1p(df["Time_spent_Alone"])
+        # 無限値を避けるため、log1pを使用し、負の値を0に置換
+        time_alone_positive = df["Time_spent_Alone"].clip(lower=0)
+        df["alone_log"] = np.log1p(time_alone_positive)
 
     # ソーシャル関連特徴量
     if "Social_event_attendance" in df.columns:
@@ -174,7 +179,9 @@ def enhanced_interaction_features(df: pd.DataFrame) -> pd.DataFrame:
 
         if "Drained_after_socializing_encoded" in df.columns:
             df["extrovert_drain_interaction"] = df["extrovert_score"] * df["Drained_after_socializing_encoded"]
-            df["extrovert_drain_ratio"] = df["extrovert_score"] / (df["Drained_after_socializing_encoded"] + 1e-8)
+            # 極端な値を避けるため、分母を1以上に制限
+            drain_denominator = df["Drained_after_socializing_encoded"].clip(lower=1)
+            df["extrovert_drain_ratio"] = df["extrovert_score"] / drain_denominator
 
         if "Friends_circle_size" in df.columns:
             df["extrovert_friends_interaction"] = df["extrovert_score"] * df["Friends_circle_size"]
