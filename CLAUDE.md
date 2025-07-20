@@ -557,3 +557,65 @@ pip install -e .[visualization]    # + plotting libraries
 - ✅ **Feature Engineering**: 30+ engineered features with importance ranking
 - ✅ **Optimization Infrastructure**: Optuna integration for hyperparameter tuning
 - ✅ **Performance Monitoring**: Time tracking and comprehensive logging
+
+## 【FILE OUTPUT CONVENTIONS】
+### Directory Structure Standards
+**IMPORTANT**: Always use consistent output directory naming to avoid confusion.
+
+#### 📁 **Submission Files** (Kaggle Competition Uploads)
+```bash
+# PRIMARY LOCATION (Always use this)
+submissions/
+├── submission_YYYY-MM-DD_HH-MM-SS.csv           # Timestamped submissions
+├── submission_baseline.csv                       # Baseline model
+├── submission_optimized.csv                      # Optimized model
+└── submission_ensemble.csv                       # Ensemble model
+
+# DEPRECATED (Do not use)
+outputs/submissions/  # Legacy location - being phased out
+```
+
+#### 📁 **Model Outputs** (Training Results)
+```bash
+outputs/
+├── models/                                       # Trained model files
+│   ├── lightgbm_YYYY-MM-DD_HH-MM-SS.pkl
+│   └── ensemble_YYYY-MM-DD_HH-MM-SS.pkl
+├── logs/                                         # Training logs
+│   ├── training_YYYY-MM-DD.log
+│   └── workflow_times.json
+└── artifacts/                                    # Other training artifacts
+    ├── feature_importance.png
+    └── cv_results.json
+```
+
+#### 🚨 **Naming Convention Rules**
+1. **Submission files**: Always save to `submissions/` (root level)
+2. **Training outputs**: Always save to `outputs/` subdirectories
+3. **Timestamps**: Use format `YYYY-MM-DD_HH-MM-SS` for uniqueness
+4. **No spaces**: Use underscores `_` or hyphens `-` in filenames
+5. **Descriptive names**: Include model type and purpose in filename
+
+#### 📝 **Code Implementation Standards**
+```python
+# ✅ CORRECT: Use submissions/ for competition files
+submission_path = "submissions/submission_baseline.csv"
+df.to_csv(submission_path, index=False)
+
+# ❌ INCORRECT: Do not use outputs/submissions/
+submission_path = "outputs/submissions/submission.csv"  # DEPRECATED
+
+# ✅ CORRECT: Use outputs/ for training artifacts
+model_path = "outputs/models/lightgbm_model.pkl"
+log_path = "outputs/logs/training.log"
+
+# ✅ CORRECT: Create directories if they don't exist
+from pathlib import Path
+Path("submissions").mkdir(exist_ok=True)
+Path("outputs/models").mkdir(parents=True, exist_ok=True)
+```
+
+#### 🔄 **Migration Note**
+- Legacy `outputs/submissions/` directory exists but should not be used for new code
+- All new submission files must go to root-level `submissions/` directory
+- This prevents confusion about where to find final competition upload files
