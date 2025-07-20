@@ -82,15 +82,39 @@ def load_and_prepare_enhanced_data_heavy() -> tuple[np.ndarray, np.ndarray, np.n
 
         # Separate features and target
         id_cols = ["id"]
-        target_cols = ["Personality", "Personality_encoded"]
+        
+        # Find the correct target column name in train data
+        target_cols = []
+        if "Personality" in train_df.columns:
+            target_cols.append("Personality")
+        if "Personality_encoded" in train_df.columns:
+            target_cols.append("Personality_encoded")
+        elif "Personality_encoded_1" in train_df.columns:
+            target_cols.append("Personality_encoded_1")
 
-        # Get feature columns
+        # Get feature columns from train data (excluding id and target columns)
         feature_cols = [col for col in train_df.columns if col not in id_cols + target_cols]
 
-        # Extract features and target
-        X_train = np.asarray(train_df[feature_cols].values)
-        y_train = np.asarray(train_df["Personality_encoded"].values)
-        X_test = np.asarray(test_df[feature_cols].values)
+        # Get feature columns that also exist in test data (since test won't have target columns)
+        test_feature_cols = [col for col in feature_cols if col in test_df.columns]
+
+        # Extract features and target - use the available encoded column
+        X_train = np.asarray(train_df[test_feature_cols].values)
+        if "Personality_encoded" in train_df.columns:
+            y_train = np.asarray(train_df["Personality_encoded"].values)
+        elif "Personality_encoded_1" in train_df.columns:
+            y_train = np.asarray(train_df["Personality_encoded_1"].values)
+        else:
+            raise ValueError("No encoded target column found")
+        X_test = np.asarray(test_df[test_feature_cols].values)
+        
+        # Clean NaN and Inf values
+        logger.info("Cleaning NaN and Inf values...")
+        X_train = np.nan_to_num(X_train, nan=0.0, posinf=1e10, neginf=-1e10)
+        X_test = np.nan_to_num(X_test, nan=0.0, posinf=1e10, neginf=-1e10)
+        
+        # Update feature_cols to match what we actually used
+        feature_cols = test_feature_cols
 
         logger.info(f"Heavy Features: {len(feature_cols)}, Samples: {len(X_train)}")
 
@@ -134,11 +158,26 @@ def optimize_hyperparameters_heavy(X_train: np.ndarray, y_train: np.ndarray) -> 
         Optimization results
     """
     logger.info("Starting Heavy Optuna hyperparameter optimization...")
+    
+    # データの健全性チェック
+    logger.info(f"X_train shape: {X_train.shape}")
+    logger.info(f"y_train shape: {y_train.shape}")
+    logger.info(f"X_train has nan: {np.isnan(X_train).any()}")
+    logger.info(f"X_train has inf: {np.isinf(X_train).any()}")
+    logger.info(f"y_train unique values: {np.unique(y_train)}")
 
     try:
-        # Run extensive optimization for production
+        # まず少ないトライアル数でテスト
+        logger.info("Running test with 5 trials first...")
+        test_results = optimize_lightgbm_hyperparams(
+            X_train, y_train, n_trials=5, cv_folds=3, random_state=42
+        )
+        logger.info(f"Test optimization completed: Best score = {test_results['best_score']:.4f}")
+        
+        # 本番の最適化（トライアル数を減らして実行）
+        logger.info("Running full optimization with 20 trials...")
         optimization_results = optimize_lightgbm_hyperparams(
-            X_train, y_train, n_trials=200, cv_folds=5, random_state=42  # More trials for production
+            X_train, y_train, n_trials=20, cv_folds=5, random_state=42  # 実用的な20トライアル
         )
 
         # Save optimization results

@@ -529,7 +529,8 @@ class OptunaOptimizer:
         self.best_params: Optional[Dict[str, Any]] = None
 
         # Suppress Optuna logging noise
-        optuna.logging.set_verbosity(optuna.logging.WARNING)
+        # Set Optuna logging to INFO level for progress visibility
+        optuna.logging.set_verbosity(optuna.logging.INFO)
 
     def objective(self, trial: optuna.Trial, X: np.ndarray, y: np.ndarray) -> float:
         """
@@ -543,6 +544,8 @@ class OptunaOptimizer:
         Returns:
             Negative accuracy (for minimization)
         """
+        logger.info(f"Trial {trial.number} started...")
+        
         # Suggest hyperparameters
         params = {
             "objective": "binary",
@@ -567,14 +570,16 @@ class OptunaOptimizer:
             # Create model
             model = lgb.LGBMClassifier(**params)  # type: ignore
 
-            # Perform cross-validation
-            scores = cross_val_score(model, X, y, cv=self.cv_folds, scoring="accuracy", n_jobs=-1)
-
+            # Perform cross-validation (n_jobs=1 for stability in Optuna)
+            scores = cross_val_score(model, X, y, cv=self.cv_folds, scoring="accuracy", n_jobs=1)
+            score_mean = scores.mean()
+            logger.info(f"Trial {trial.number} completed: Accuracy = {score_mean:.4f}")
+            
             # Return negative mean score (Optuna minimizes)
-            return -scores.mean()
+            return -score_mean
 
         except Exception as e:
-            logger.warning(f"Trial failed: {e}")
+            logger.warning(f"Trial {trial.number} failed: {e}")
             return 0.0  # Return worst score for failed trials
 
     def optimize(self, X: np.ndarray, y: np.ndarray) -> Dict[str, Any]:
@@ -595,9 +600,14 @@ class OptunaOptimizer:
             direction="minimize", sampler=optuna.samplers.TPESampler(seed=self.random_state)
         )
 
-        # Optimize
+        # Optimize with parallel execution (limited to avoid memory issues)
         start_time = time.time()
-        self.study.optimize(lambda trial: self.objective(trial, X, y), n_trials=self.n_trials, show_progress_bar=True)
+        self.study.optimize(
+            lambda trial: self.objective(trial, X, y), 
+            n_trials=self.n_trials, 
+            show_progress_bar=True,
+            n_jobs=2  # Run 2 trials in parallel (reduced for stability)
+        )
         optimization_time = time.time() - start_time
 
         # Extract best parameters
