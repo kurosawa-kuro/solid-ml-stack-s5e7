@@ -453,7 +453,7 @@ def main():
             logger.info("TARGET ANALYSIS: ")
             bronze_status = "✓ ACHIEVED" if success_criteria["bronze_target_achieved"] else "✗ MISSED"
             logger.info(f"Bronze Target (0.976518): {bronze_status}")
-            logger.info(f"Gap to Bronze: {cv_results['mean_score'] - 0.976518: +.6f}")
+            logger.info(f"Gap to Bronze: {cv_results['mean_score'] - 0.976518:+.6f}")
             logger.info(f"Stability: {'✓' if success_criteria['stable_performance'] else '✗'}")
             logger.info(f"Ready for Submission: {'✓' if success_criteria['ready_for_submission'] else '✗'}")
             logger.info("=" * 70)
