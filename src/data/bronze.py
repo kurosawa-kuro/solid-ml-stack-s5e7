@@ -17,6 +17,8 @@ DB_PATH = "/home/wsl/dev/my-study/ml/solid-ml-stack-s5e7/data/kaggle_datasets.du
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore', category=FutureWarning)
 warnings.filterwarnings('ignore', category=UserWarning)
+warnings.filterwarnings('ignore', category=RuntimeWarning, message='overflow encountered in multiply')
+warnings.filterwarnings('ignore', category=RuntimeWarning, message='overflow encountered in reduce')
 
 
 def load_data() -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -47,12 +49,12 @@ def _set_optimal_dtypes(df: pd.DataFrame) -> pd.DataFrame:
             if df[col].dtype in ['float64', 'float32']:
                 col_min, col_max = df[col].min(), df[col].max()
                 if col_min >= -3.4e38 and col_max <= 3.4e38:
-                    df[col] = df[col].astype('float32')
+                    df[col] = df[col].astype('float64')  # Use float64 for numerical stability
                 else:
                     df[col] = df[col].astype('float64')
             elif df[col].dtype in ['int64', 'int32']:
-                # Convert integers to float for LightGBM
-                df[col] = df[col].astype('float32')
+                # Convert integers to float64 for LightGBM and numerical stability
+                df[col] = df[col].astype('float64')
     
     # Categorical features - ensure object type for processing
     categorical_cols = ['Stage_fear', 'Drained_after_socializing']

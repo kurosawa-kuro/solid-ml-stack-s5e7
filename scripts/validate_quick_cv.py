@@ -18,8 +18,9 @@ from sklearn.model_selection import StratifiedKFold
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from src.data.bronze import load_data
-from src.data.silver_enhanced import apply_enhanced_silver_features
+from src.data.bronze import load_data, create_bronze_tables
+from src.data.bronze import load_bronze_data
+from src.data.silver import EnhancedSilverPreprocessor
 from src.models import LightGBMModel
 
 warnings.filterwarnings("ignore")
@@ -40,8 +41,13 @@ def run_quick_cv_with_enhanced_features(sample_ratio: float = 0.1, folds: int = 
     print(f"🚀 Quick CV Test - Enhanced Silver Features")
     print(f"   Sample: {sample_ratio*100:.1f}%, Folds: {folds}")
     
-    # Load data
-    train_data, test_data = load_data()
+    # Load bronze data (preprocessed)
+    try:
+        train_data, test_data = load_bronze_data()
+    except Exception:
+        print("   Creating bronze tables...")
+        create_bronze_tables()
+        train_data, test_data = load_bronze_data()
     
     # Sample for speed
     if sample_ratio < 1.0:
@@ -57,7 +63,9 @@ def run_quick_cv_with_enhanced_features(sample_ratio: float = 0.1, folds: int = 
     
     # Apply enhanced silver features
     start_time = time.time()
-    X_enhanced = apply_enhanced_silver_features(X, y, is_train=True)
+    preprocessor = EnhancedSilverPreprocessor()
+    preprocessor.fit(X, y)
+    X_enhanced = preprocessor.transform(X)
     feature_time = time.time() - start_time
     
     print(f"   Enhanced features: {X_enhanced.shape[1]} (+{X_enhanced.shape[1] - X.shape[1]})")

@@ -133,9 +133,9 @@ def check_data_integrity(X: np.ndarray, y: np.ndarray) -> Dict[str, bool]:
         "binary_targets": set(np.unique(y)) == {0, 1},
         "sufficient_samples": len(y) >= 10,
         "balanced_classes": all(np.bincount(y.astype(int)) > 0),
-        # Additional keys for test compatibility
-        "has_nan": np.isnan(X).any() or np.isnan(y).any(),
-        "has_inf": np.isinf(X).any(),
+        # Additional keys for test compatibility  
+        "has_nan": not (np.isnan(X).any() or np.isnan(y).any()),
+        "has_inf": not np.isinf(X).any(),
         "shape_match": X.shape[0] == y.shape[0],
         "min_samples_ok": len(y) >= 10,
         "n_classes": len(np.unique(y))

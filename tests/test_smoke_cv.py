@@ -113,7 +113,7 @@ class TestEnhancedSilverSmokeTests:
         """Test that enhanced features significantly expand feature space"""
         # Load a small sample to test feature expansion
         from src.data.bronze import load_data
-        from src.data.silver_enhanced import apply_enhanced_silver_features
+        from src.data.silver import EnhancedSilverPreprocessor
         
         train_data, _ = load_data()
         sample_data = train_data.sample(n=100, random_state=42)
